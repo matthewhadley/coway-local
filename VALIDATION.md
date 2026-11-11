@@ -1,6 +1,6 @@
 # Validation for 0.2.2
 
-Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 20 Python tests and 9 JavaScript tests. The previous server implementation and Home Assistant's hassfest validator [passed on Linux](https://github.com/scottjg/coway-local/actions/runs/42976372380); v0.2.2 changes the browser setup flow and version metadata.
+Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 20 Python tests and 10 JavaScript tests. The previous server implementation and Home Assistant's hassfest validator [passed on Linux](https://github.com/scottjg/coway-local/actions/runs/42976372380); v0.2.2 changes the browser setup flow and version metadata.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -9,7 +9,7 @@ Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.1
 - HTTP exposes only the public CA. Enrollment and short-lived private-key downloads require HTTPS and a valid pending setup capability.
 - Credential persistence, setup expiry, listener cleanup and redacted diagnostics pass.
 - JavaScript P001/P002 output matches the independent fixed codec fixture; fragment reassembly and invalid input checks pass.
-- Browser names are display labels and do not gate device acceptance. Tests cover synchronous unfiltered discovery, service permissions, alternate/renamed/unnamed devices, alternate setup-bundle model labels, and rejection of malformed identity responses even when the advertised name matches AP-1022K. FFA0's module name remains distinct from the advertised name.
+- Browser names are display labels and do not gate device acceptance. Tests cover synchronous manufacturer-filtered discovery, matching the captured advertisement and alternate product codes, excluding unrelated manufacturers and malformed layouts, service permissions, alternate/renamed/unnamed devices, alternate setup-bundle model labels, and rejection of malformed identity responses even when the advertised name matches AP-1022K. FFA0's module name remains distinct from the advertised name.
 - Chrome loads the static page, accepts a synthetic setup bundle, strips its URL fragment, and exposes Web Bluetooth with empty Wi-Fi credentials.
 
 The **physical AP-1022K** was temporarily connected to the integration’s service using its existing local credentials:
@@ -61,6 +61,6 @@ Installed implementation commit `7af9f36` through HACS and restarted HAOS. The i
 
 ## v0.2.2 Bluetooth discovery
 
-The chooser requests all devices, then the page reads the expected services, characteristics and identity. Neither the advertised name nor setup-bundle model label must equal AP-1022K. Before starting a different connection, old Wi-Fi scan results are cleared. Missing setup services produce an actionable error. The server's protocol mappings are unchanged; the updated hosted page works with existing v0.2.1 setup links without restarting HA. Tests simulate alternate device names and identity responses; no additional physical model has been tested.
+The chooser applies the IoCare app's manufacturer-layout checks for IDs `0x0639` and `0xFFFF`, then the page reads the expected services, characteristics and identity. In the saved Android scan these checks match the fan and exclude the other 67 advertisers with manufacturer data. The [APK analysis](BLE_DISCOVERY.md) records the layouts and the differences from the app's full catalog-based discovery. Neither the advertised name nor setup-bundle model label must equal AP-1022K. Before starting a different connection, old Wi-Fi scan results are cleared. Missing setup services produce an actionable error. The server's protocol mappings are unchanged; the updated hosted page works with existing v0.2.1 setup links without restarting HA. Tests simulate alternate device names and identity responses; no additional physical model has been tested.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.

@@ -4,7 +4,21 @@ import {canonicalMac, text, uuid} from './protocol.mjs';
 export function requestFan(bluetooth) {
   // Keep this synchronous so Chrome's chooser retains the click's user activation.
   return bluetooth.requestDevice({
-    acceptAllDevices: true,
+    // IoCare's normal-device scan parser accepts these manufacturer layouts.
+    // Zero mask bytes leave model/product bytes unrestricted but require length.
+    // See BLE_DISCOVERY.md; names and Coway's cloud catalog are not gates here.
+    filters: [
+      {manufacturerData: [{
+        companyIdentifier: 0x0639,
+        dataPrefix: new Uint8Array([0, 0x40, 0, 0, 0, 0, 0]),
+        mask: new Uint8Array([0, 0xff, 0, 0, 0, 0, 0]),
+      }]},
+      {manufacturerData: [{
+        companyIdentifier: 0xffff,
+        dataPrefix: new Uint8Array(8),
+        mask: new Uint8Array(8),
+      }]},
+    ],
     optionalServices: [uuid('ffc0'), uuid('ffc1'), uuid('ffc3')],
   });
 }

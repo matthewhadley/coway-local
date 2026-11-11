@@ -61,13 +61,14 @@ test('the module SSID differs from the advertised product model', () => {
   assert.equal(identity.moduleName, 'COWAY334455');
   assert.equal(identity.mac, '001122334455');
 });
-test('discovery requests all devices synchronously with the expected service permissions', async () => {
+test('discovery requests manufacturer-filtered devices synchronously with service permissions', async () => {
   const selected = {name: 'Another purifier'};
   let requested = false;
   const pending = requestFan({requestDevice(options) {
     requested = true;
-    assert.equal(options.acceptAllDevices, true);
-    assert.equal(options.filters, undefined);
+    assert.equal(options.acceptAllDevices, undefined);
+    assert.equal(options.filters.length, 2);
+    assert.ok(options.filters.every(filter => !filter.name && !filter.namePrefix && !filter.services));
     assert.equal(options.exclusionFilters, undefined);
     assert.deepEqual(options.optionalServices, [
       '0000ffc0-0000-1000-8000-00805f9b34fb',
@@ -78,6 +79,28 @@ test('discovery requests all devices synchronously with the expected service per
   }});
   assert.equal(requested, true);
   assert.equal(await pending, selected);
+});
+test('advertisement filters admit the captured fan and alternate product codes, excluding unrelated and short data', async () => {
+  let filters;
+  await requestFan({requestDevice(options) { filters = options.filters; return Promise.resolve({}); }});
+  // Web Bluetooth masked-prefix matching; payload excludes the company ID.
+  const matches = (company, payload) => filters.some(filter => filter.manufacturerData.every(rule =>
+    company === rule.companyIdentifier && payload.length >= rule.dataPrefix.length
+    && rule.dataPrefix.every((byte, i) => (payload[i] & rule.mask[i]) === (byte & rule.mask[i]))));
+  // Actual AP-1022K advertisement: product/material code 113439, no device identifier.
+  const captured = Buffer.from('0016313133343339303030303030303030303030303030c5', 'hex');
+  assert.equal(matches(0xffff, captured), true);
+  const alternate = Buffer.from(captured);
+  alternate.set(utf8.encode('999999'), 2);
+  assert.equal(matches(0xffff, alternate), true);
+  assert.equal(matches(0xffff, captured.subarray(0, 7)), false);
+  const newerLayout = Uint8Array.from([0, 0x40, ...utf8.encode('ABCDE')]);
+  assert.equal(matches(0x0639, newerLayout), true);
+  assert.equal(matches(0x0639, newerLayout.subarray(0, 6)), false);
+  newerLayout[1] = 0x41;
+  assert.equal(matches(0x0639, newerLayout), false);
+  for (const company of [0x004c, 0x05a7, 0x0065, 0x0ba9, 0x047f, 0x0334, 0x07e0, 0x8842])
+    assert.equal(matches(company, captured), false);
 });
 test('different advertised names and model labels can reach Wi-Fi configuration', () => {
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};

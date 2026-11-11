@@ -4,7 +4,7 @@ A single Home Assistant custom integration for local Coway control, tested with 
 
 No add-on, external MQTT integration, Raspberry Pi, or Bluetooth adapter on the HA host is required. After enrollment, the fan connects directly to HA over your LAN. The Coway cloud and provisioning website are not needed for ongoing control.
 
-This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Bluetooth setup accepts devices regardless of advertised name, allowing other models to be tried if they expose the same setup services and identity format. Only AP-1022K has been tested on physical hardware; other models and firmware are unverified.
+This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Bluetooth discovery uses the manufacturer's advertisement layouts found in the IoCare app, without an exact model-name restriction. Other models can be tried if they advertise those layouts and expose the same setup services and identity format. Only AP-1022K has been tested on physical hardware; other models and firmware are unverified. See [discovery evidence and limitations](BLE_DISCOVERY.md).
 
 ## Included
 
@@ -39,7 +39,7 @@ Reserve the HA host address in your router before provisioning. Changing the add
 2. Enter the serial number from the fan’s product label and a friendly name. BLE exposes a device name and MAC address, but not the serial number.
 3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
 4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
-5. Choose your fan in Chrome's picker, then select a 2.4 GHz Wi-Fi network from the fan’s scan. The picker shows all nearby BLE devices; your fan's name does not have to start with `AP-1022K`. The page checks its setup services and identity response before accepting Wi-Fi settings. Enter its Wi-Fi password and start setup.
+5. Choose your fan in Chrome's picker, then select a 2.4 GHz Wi-Fi network from the fan’s scan. The picker filters for Coway setup advertisement formats; your fan's name does not have to start with `AP-1022K`. The page checks its setup services and identity response before accepting Wi-Fi settings. Enter its Wi-Fi password and start setup.
 6. When the page says the fan reports connected, return to HA and press **Submit**. HA confirms the connection and the **3-week pre-filter cleaning interval** applied during enrollment.
 
 Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
