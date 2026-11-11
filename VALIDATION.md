@@ -81,4 +81,11 @@ endpoint is unavailable over HTTP. Old-server links still produce the original
 certificate-service URL. The new named URL requires a physical-fan check; previous
 successful hardware enrollments used the original endpoint.
 
+Installed implementation commit `4d6fb45` through HACS and restarted HAOS. The
+existing device automatically changed from **Coway** to **Coway Airmega IconS**,
+and its Connection sensor returned to **Connected** with fresh telemetry. Its
+existing device page and entities were retained; no Bluetooth re-enrollment or
+manual rename was needed. A certificate-validated GET to the new HTTPS enrollment
+route returned 405 (the route accepts POST), confirming the updated server loaded.
+
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.
