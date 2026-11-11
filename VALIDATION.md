@@ -1,6 +1,6 @@
 # Validation for 0.2.0
 
-Checked locally with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. All 15 Python tests, 6 JavaScript tests, and Ruff checks pass. The GitHub Checks workflow runs the same tests on Linux and validates the integration with hassfest.
+Checked with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. All 15 Python tests, 6 JavaScript tests, and Ruff checks pass locally and on Linux. Home Assistant's hassfest validator also passes ([v0.2.0 implementation run](https://github.com/scottjg/coway-local/actions/runs/42974003320)).
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -39,5 +39,18 @@ A physical AP-1022K was freshly enrolled into **Home Assistant OS 18.3**, Superv
 The installed server was v0.1.0; the successful enrollment used the corrected browser identity handling included in v0.1.1. The v0.1.1 patch changed the browser, documentation, and version metadata; server behavior was unchanged.
 
 In v0.1.2, Last seen is disabled by default for newly created entities. The existing HAOS entity was disabled through HA's entity settings to stop routine timestamp Activity updates; no server restart or fan reprovisioning was needed. Existing historical entries are retained.
+
+## v0.2.0 telemetry deployment
+
+HACS downloaded implementation commit `4bf7aec` (manifest version 0.2.0), then Home Assistant was restarted. The existing fan reconnected without Bluetooth provisioning. Its device page displayed all four new sensors from fresh device reports:
+
+| Sensor | Reading observed after restart |
+| --- | --- |
+| PM2.5 | 0 μg/m³ |
+| Ambient light | 533 lx |
+| Pre-filter remaining | 74% |
+| MAX2 filter remaining | 29% |
+
+The Connection sensor showed Connected and Last seen remained disabled. No control settings or filter counters were changed during this update. These checks confirm local MQTT-to-HA delivery, not independent calibration of the physical sensors or a side-by-side comparison with the original app.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The pre-filter cycle initially showed unknown, as expected until that setting is acknowledged. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.
