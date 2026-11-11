@@ -1,6 +1,6 @@
 # Validation for 0.1.0
 
-Checked with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS.
+Checked with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS, with the same 14 Python tests and 5 JavaScript tests also passing on GitHub’s Linux runner. Home Assistant’s hassfest validator passes.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, all eight entities, fan and select service calls, entry reload and unload pass in isolated temporary storage.
@@ -21,4 +21,6 @@ The **physical AP-1022K** was temporarily connected to the integration’s servi
 
 The earlier prototype successfully performed Web Bluetooth provisioning and tested HTTPS port 9443 and MQTT port 9883 on the same fan.
 
-**Remaining deployment check:** publish the static page, install this packaged integration on the actual HAOS machine, and perform a fresh browser enrollment into its new CA and server address. The hardware check above verifies the new broker/control implementation; it does not claim that final HAOS enrollment has already happened.
+The static HTTPS page is published at https://scottjg.github.io/coway-local/ and has been checked in Chrome.
+
+**Remaining deployment check:** install this packaged integration on the actual HAOS machine and perform a fresh browser enrollment into its new CA and server address. The hardware check above verifies the new broker/control implementation; it does not claim that final HAOS enrollment has already happened.
