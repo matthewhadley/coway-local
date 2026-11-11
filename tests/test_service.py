@@ -20,7 +20,7 @@ async def test_enrollment_is_temporary_and_https_only(service):
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=tls)) as client:
         async with client.get(service.setup_bundle(pairing)["caUrl"]) as response:
             assert response.status == 200
-        url = service.setup_bundle(pairing)["certSvrUrl"]
+        url = payload["certSvrUrl"]
         for body in (
             {},
             [],
@@ -31,7 +31,7 @@ async def test_enrollment_is_temporary_and_https_only(service):
             async with client.post(url, json=body) as response:
                 assert response.status == 403
         http_base = f"http://127.0.0.1:{service.config.http_port}"
-        async with client.post(http_base + "/iot/v1/cert/r0", json={}) as response:
+        async with client.post(http_base + "/n/VGVzdCBmYW4", json={}) as response:
             assert response.status == 404
         async with client.get(
             payload["privateUrl"].replace(

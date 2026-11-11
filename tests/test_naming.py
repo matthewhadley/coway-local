@@ -6,7 +6,6 @@ import ssl
 import aiohttp
 import pytest
 
-from custom_components.coway_local import pki
 from custom_components.coway_local.naming import catalog_name
 
 from .conftest import enroll
@@ -24,7 +23,6 @@ def test_verified_catalog_uses_only_the_documented_serial_position():
 async def test_authenticated_enrollment_uses_catalog_then_bluetooth(service):
     pairing = service.begin_pairing(ICON_SERIAL)
     assert pairing.name == "Coway Airmega IconS"
-    assert service.setup_bundle(pairing)["bluetoothNameInUrl"]
     assert not service.setup_bundle(pairing)["useBluetoothName"]
     await enroll(service, serial=ICON_SERIAL, pairing=pairing, bluetooth_name="AP-1022K_334455")
     record = service.devices[ICON_SERIAL]
@@ -63,26 +61,6 @@ async def test_custom_names_and_bluetooth_names_survive_reenrollment(service):
     await service.start()
     assert service.devices[ICON_SERIAL]["name"] == "Coway"
     assert service.devices[pairing.serial]["name"] == "Bedroom"
-
-
-async def test_old_generic_names_migrate_without_touching_credentials_or_custom_names(service):
-    pairing = service.begin_pairing(ICON_SERIAL)
-    await enroll(service, serial=ICON_SERIAL, pairing=pairing)
-    await enroll(service, "OTHER00001", "001122334466")
-    await service.stop()
-    saved = pki.load_state(service.root)
-    for serial, record in saved["devices"].items():
-        for key in ("name_source", "custom_name", "bluetooth_name"):
-            record.pop(key, None)
-        record["name"] = "Coway" if serial == ICON_SERIAL else "Study fan"
-    fingerprints = {key: value["fingerprint"] for key, value in saved["devices"].items()}
-    pki.save_state(service.root, saved)
-    await service.start()
-    assert service.devices[ICON_SERIAL]["name"] == "Coway Airmega IconS"
-    assert service.devices["OTHER00001"]["name"] == "Study fan"
-    assert {key: value["fingerprint"] for key, value in service.devices.items()} == fingerprints
-    assert pki.load_state(service.root)["devices"] == service.devices
-    assert service.begin_pairing("OTHER00001").name == "Study fan"
 
 
 async def test_name_transport_requires_valid_identity_and_rejects_malformed_labels(service):

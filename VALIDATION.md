@@ -1,6 +1,6 @@
-# Validation for 0.2.3
+# Validation for 0.2.4
 
-Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 25 Python tests and 12 JavaScript tests.
+Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 23 Python tests and 12 JavaScript tests.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -69,16 +69,13 @@ Chrome on macOS loaded the published page and opened the manufacturer-filtered c
 
 The local catalog matches the documented model-code position in an 18-character
 serial number. Tests cover verified product names, unknown-code Bluetooth names,
-Unicode labels, explicit custom names, re-enrollment, restart persistence, and
-migration from the old generic default without replacing credentials. The real HA
+Unicode labels, explicit custom names, re-enrollment, and restart persistence. The real HA
 flow accepts an omitted name, updates its device-registry default from the BLE
 label, and retains a user-assigned registry name across re-enrollment and reload.
 
-The browser opts into the named enrollment endpoint only when the server's setup
-bundle advertises it. Tests exercise Unicode/base64url transport, reject malformed
-labels, require the existing enrollment token/serial/MAC checks, and confirm the
-endpoint is unavailable over HTTP. Old-server links still produce the original
-certificate-service URL. The new named URL requires a physical-fan check; previous
+Tests exercise Unicode/base64url name transport, reject malformed labels,
+require the enrollment token/serial/MAC checks, and confirm the enrollment endpoint
+is unavailable over HTTP. The new named URL requires a physical-fan check; previous
 successful hardware enrollments used the original endpoint.
 
 Installed implementation commit `4d6fb45` through HACS and restarted HAOS. The
@@ -87,5 +84,15 @@ and its Connection sensor returned to **Connected** with fresh telemetry. Its
 existing device page and entities were retained; no Bluetooth re-enrollment or
 manual rename was needed. A certificate-validated GET to the new HTTPS enrollment
 route returned 405 (the route accepts POST), confirming the updated server loaded.
+
+## v0.2.4 development cleanup
+
+Removed the startup name migration, legacy-name fallback, unnamed enrollment route,
+and optional browser capability branches for earlier development versions. The
+integration and browser now share one enrollment format, with a Bluetooth name in
+every enrollment URL. Two tests solely for upgrades from development snapshots were
+removed; current enrollment, name persistence, re-enrollment, user overrides, and
+interrupted initialization remain covered by 23 Python and 12 JavaScript tests.
+The original captured codec fixture is retained as independent protocol evidence.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.

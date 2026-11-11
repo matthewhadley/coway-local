@@ -102,21 +102,3 @@ async def test_wrong_value_does_not_complete_enrollment(service):
         assert service.states[client.serial].prefilter_cycle == 168
     finally:
         await asyncio.to_thread(client.close)
-
-
-async def test_legacy_enrollment_is_not_silently_overwritten(service, fan):
-    await asyncio.to_thread(fan.close)
-    await service.stop()
-    saved = pki.load_state(service.root)
-    saved["devices"][fan.serial].pop("prefilter_cycle")
-    pki.save_state(service.root, saved)
-    while not fan.messages.empty():
-        fan.messages.get_nowait()
-    await service.start()
-    await asyncio.to_thread(fan.open)
-    await eventually(lambda: bool(service.states[fan.serial].settings))
-    assert service.states[fan.serial].prefilter_cycle is None
-    while not fan.messages.empty():
-        assert fan.messages.get_nowait()["header"]["API_NO"] == "A1013"
-    await service.set(fan.serial, "prefilter_cycle", "3 weeks")
-    assert pki.load_state(service.root)["devices"][fan.serial]["prefilter_cycle"] == 168

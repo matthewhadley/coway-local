@@ -61,17 +61,14 @@ AP-1022K has been tested. No catalog or cloud request is made at runtime.
 
 Names are saved locally. Re-enrollment with a blank custom-name field preserves an
 existing custom name. Names assigned through HA's device settings take precedence
-and are never overwritten. On upgrade, a known product still using the old generic
-“Coway” default receives its friendly product name without Bluetooth setup or new
-credentials. Older unknown products keep their existing name until re-enrollment
-supplies their Bluetooth label. Existing entity IDs remain unchanged.
+and are never overwritten. Existing entity IDs remain unchanged on re-enrollment.
 
-For new setup links the browser carries the Bluetooth label in a base64url path
+The browser carries the Bluetooth label in a base64url path
 on the fan's existing HTTPS enrollment request. The same token, serial and MAC
 checks apply before the server accepts the name. Wi-Fi credentials and tokens
 are not included in that path; short certificate/key download URLs are unchanged.
-The hosted page retains compatibility with older integration versions, whose
-links continue using the original enrollment endpoint.
+The integration and setup page are developed together; use matching versions.
+No migrations or compatibility paths for earlier development snapshots are included.
 
 The browser displays the destination server before transmitting anything. Its setup token is in the URL fragment, which is not sent in the HTTPS request, and the page removes that fragment immediately. The Wi-Fi password is entered only in the page, stays in memory, and is cleared after completion or disconnection. HA does not receive or store the Wi-Fi password.
 
@@ -132,7 +129,7 @@ Sensors show unknown until the first report after connection, and unavailable wh
 - "Last seen" changes on every MQTT message. It is disabled by default to avoid filling Activity and the recorder with routine timestamps. Enable it in the entity settings only when needed for troubleshooting. For installations created before v0.1.2, disable the existing Last seen entity manually; upgrading preserves your entity preferences. The Connection sensor remains enabled. Disabling Last seen stops new updates but does not delete historical entries.
 - Tested on one AP-1022K, MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`. Do not assume other Coway devices use this protocol.
 - The name-independent setup page enables experiments with other models, not automatic multi-model support. The server still uses the AP-1022K control/telemetry mappings and MQTT service code `002AIR007`; its model metadata also defaults to AP-1022K. Compatible Bluetooth services alone do not establish compatibility with those server mappings.
-- A read-only query for the pre-filter cleaning interval has not been identified. New enrollments establish a confirmed 3-week default, and confirmed changes are saved across HA restarts. Fans enrolled before v0.2.1 keep their existing setting; select an interval once to establish its saved value without provisioning again. Until then, an older installation may show unknown.
+- A read-only query for the pre-filter cleaning interval has not been identified. Enrollment establishes a confirmed 3-week default, and confirmed changes are saved across HA restarts.
 - PM10, other air-quality metrics, filter notification flags, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
 - Wi-Fi association failure: use a 2.4 GHz network compatible with the fan, re-enter setup mode, and check the password.
 - Certificate or broker failure: check the advertised LAN IP, the three ports, routing/VLAN isolation, and HA logs. Keep the short HTTPS download URLs intact.
@@ -152,7 +149,7 @@ node --test tests/web.test.mjs
 .venv/bin/python scripts/package.py
 ```
 
-Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Cleaning-interval tests cover the enrollment default, matching acknowledgements, interrupted initialization, later preferences surviving restarts, re-enrollment, and upgrades without overwriting an existing fan. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
+Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Cleaning-interval tests cover the enrollment default, matching acknowledgements, interrupted initialization, later preferences surviving restarts, and re-enrollment. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
 
 Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created the original eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
 

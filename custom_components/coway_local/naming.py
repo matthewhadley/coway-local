@@ -32,15 +32,13 @@ def catalog_name(serial):
     return None
 
 
-def choose_name(serial, custom_name="", bluetooth_name="", previous=""):
+def choose_name(serial, custom_name="", bluetooth_name=""):
     if custom_name:
         return custom_name, "custom"
     if name := catalog_name(serial):
         return name, "catalog"
-    if bluetooth_name:
-        return bluetooth_name, "bluetooth"
-    # Older enrollments did not record BLE names. Preserve them until reprovisioned.
-    return previous or serial, "legacy"
+    # Before Bluetooth selection, an unknown product's display name is empty.
+    return bluetooth_name, "bluetooth"
 
 
 def decode_bluetooth_name(encoded):
@@ -56,17 +54,3 @@ def decode_bluetooth_name(encoded):
     if not name:
         raise ValueError("Empty Bluetooth name")
     return name
-
-
-def migrate_name(serial, record):
-    """Distinguish the old generic default from existing custom names once."""
-    old_name = record.get("name", "")
-    source = record.get("name_source")
-    custom = record.get("custom_name", "")
-    if source is None and old_name not in ("", "Coway"):
-        custom = old_name
-    name, source = choose_name(serial, custom, record.get("bluetooth_name", ""), old_name)
-    update = {"name": name, "name_source": source, "custom_name": custom}
-    changed = any(record.get(key) != value for key, value in update.items())
-    record.update(update)
-    return changed

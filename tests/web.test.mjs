@@ -9,7 +9,7 @@ const bundle = {
   v: 1, model: 'AP-1022K', name: 'Test fan', serial: 'TEST000001',
   certToken: 'a'.repeat(32), expiresAt: now + 900000,
   caUrl: 'http://192.0.2.1:8080/ca.pem',
-  certSvrUrl: 'https://192.0.2.1:9443/iot/v1/cert/r0',
+  certSvrUrl: 'https://192.0.2.1:9443/n', useBluetoothName: false,
 };
 test('P001 and AES-CBC P002 match the independently generated protocol fixture', async () => {
   const fixture = JSON.parse(await readFile(new URL('protocol-fixture.json', import.meta.url)));
@@ -31,8 +31,8 @@ test('expired and malformed destinations are rejected before Bluetooth writes', 
   for (const patch of [
     {expiresAt: now}, {v: 2}, {serial: '../../secret'}, {certToken: 'bad'},
     {model: null}, {model: ''}, {model: 'x'.repeat(81)},
-    {certSvrUrl: 'http://192.0.2.1:9443/iot/v1/cert/r0'},
-    {certSvrUrl: 'https://192.0.2.2:9443/iot/v1/cert/r0'},
+    {certSvrUrl: 'http://192.0.2.1:9443/n'},
+    {certSvrUrl: 'https://192.0.2.2:9443/n'},
     {caUrl: 'http://user:secret@192.0.2.1:8080/ca.pem'},
     {caUrl: 'http://192.0.2.1:8080/ca.pem?secret=x'},
   ]) assert.throws(() => validateBundle({...bundle, ...patch}, now));
@@ -125,8 +125,8 @@ test('matching advertised names do not bypass malformed identity responses', () 
     {1: 123, 2: utf8.encode('001122334455')},
   ]) assert.throws(() => readIdentity('AP-1022K_334455', fields));
 });
-test('new servers receive the selected Bluetooth name in the fan enrollment URL', () => {
-  const input = {...bundle, bluetoothNameInUrl: true, useBluetoothName: true};
+test('enrollment always carries the selected Bluetooth name in the fan enrollment URL', () => {
+  const input = {...bundle, useBluetoothName: true};
   const decoded = decodeSetup('#setup=' + Buffer.from(JSON.stringify(input)).toString('base64url'), now);
   assert.deepEqual(decoded, input);
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
@@ -141,15 +141,12 @@ test('new servers receive the selected Bluetooth name in the fan enrollment URL'
     assert.equal(config.certToken, bundle.certToken);
     assert.equal(config.caUrl, bundle.caUrl);
     assert.ok(!config.certSvrUrl.includes(config.certToken));
-    // Old HA installations keep the original URL even with the new hosted page.
-    assert.equal(wifiConfig(bundle, identity, network, 'testwifi', now).certSvrUrl, bundle.certSvrUrl);
   }
 });
-test('malformed naming capabilities and unsafe or oversized Bluetooth labels stop provisioning', () => {
-  for (const value of ['true', 1, null])
-    assert.throws(() => validateBundle({...bundle, bluetoothNameInUrl: value}, now));
-  const input = {...bundle, bluetoothNameInUrl: true};
+test('invalid naming options and unsafe or oversized Bluetooth labels stop provisioning', () => {
+  for (const value of ['true', 1, null, undefined])
+    assert.throws(() => validateBundle({...bundle, useBluetoothName: value}, now));
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
   for (const name of ['', ' ', 'x'.repeat(81), 'Bad\nname', 'Bad\u007fname'])
-    assert.throws(() => wifiConfig(input, {mac: '001122334455', name}, network, 'testwifi', now));
+    assert.throws(() => wifiConfig(bundle, {mac: '001122334455', name}, network, 'testwifi', now));
 });
