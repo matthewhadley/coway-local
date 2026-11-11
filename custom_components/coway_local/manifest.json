@@ -3,6 +3,7 @@
   "name": "Coway Local",
   "codeowners": ["@scottjg"],
   "config_flow": true,
+  "dependencies": ["network"],
   "documentation": "https://github.com/scottjg/coway-local",
   "integration_type": "hub",
   "iot_class": "local_push",
