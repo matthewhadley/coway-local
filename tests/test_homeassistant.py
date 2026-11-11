@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from homeassistant import bootstrap, config_entries, loader
+from homeassistant.components.logbook.helpers import is_sensor_continuous
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import frame
@@ -66,13 +67,50 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
                     )
                 ]
             )
-            == 7
+            == 11
         )
         registry = er.async_get(hass)
         last_seen_id = registry.async_get_entity_id("sensor", DOMAIN, "TEST000001_last_seen")
         assert last_seen_id is not None
         assert registry.async_get(last_seen_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
         assert hass.states.get(last_seen_id) is None
+        expected = {
+            "sensor.test_fan_pm2_5": ("0", "μg/m³", "pm25"),
+            "sensor.test_fan_ambient_light": ("617", "lx", "illuminance"),
+            "sensor.test_fan_pre_filter_remaining": ("75", "%", None),
+            "sensor.test_fan_max2_filter_remaining": ("29", "%", None),
+        }
+        for entity_id in expected:
+            assert hass.states.get(entity_id).state == "unknown"
+        await asyncio.to_thread(
+            client.report,
+            {"A1020.0001": 0, "A1020.0007": 617, "A1020.0011": 25, "A1020.0012": 71},
+        )
+        await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "0")
+        for entity_id, (value, unit, device_class) in expected.items():
+            state = hass.states.get(entity_id)
+            assert state.state == value
+            assert state.attributes["unit_of_measurement"] == unit
+            assert state.attributes["state_class"] == "measurement"
+            assert state.attributes.get("device_class") == device_class
+            assert is_sensor_continuous(hass, registry, entity_id)
+        # Partial reports preserve other measurements. Zero and 100% usage are valid.
+        await asyncio.to_thread(
+            client.report, {"A1020.0001": 2, "A1020.0011": 0, "A1020.0012": 100}
+        )
+        await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "2")
+        assert hass.states.get("sensor.test_fan_ambient_light").state == "617"
+        assert hass.states.get("sensor.test_fan_pre_filter_remaining").state == "100"
+        assert hass.states.get("sensor.test_fan_max2_filter_remaining").state == "0"
+        await asyncio.to_thread(
+            client.report,
+            {"A1020.0001": -1, "A1020.0007": None, "A1020.0011": 101, "A1020.0012": -1},
+        )
+        await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "unknown")
+        for entity_id in expected:
+            assert hass.states.get(entity_id).state == "unknown"
+        await asyncio.to_thread(client.report, {"A1020.0001": 1})
+        await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "1")
         await hass.services.async_call(
             "fan", "set_percentage", {"entity_id": "fan.test_fan", "percentage": 100}, blocking=True
         )
@@ -116,8 +154,12 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         # A newly issued token cannot be completed by the already-online session.
         assert not pending.complete
         await asyncio.to_thread(client.close)
+        await eventually(
+            lambda: hass.states.get("sensor.test_fan_pm2_5").state == "unavailable"
+        )
         await asyncio.to_thread(client.open)
         await eventually(lambda: pending.complete)
+        await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "unknown")
         options = await hass.config_entries.options.async_configure(options["flow_id"], {})
         assert options["type"] == "create_entry"
         await hass.async_block_till_done()
@@ -127,6 +169,8 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         assert entry.state.value == "loaded"
         assert entry.runtime_data is not service
         assert hass.states.get("fan.test_fan").state == "unavailable"
+        for entity_id in expected:
+            assert hass.states.get(entity_id).state == "unavailable"
         assert "TEST000001" in entry.runtime_data.devices
         final_service = entry.runtime_data
         assert await hass.config_entries.async_unload(entry.entry_id)

@@ -1,9 +1,10 @@
-# Validation for 0.1.2
+# Validation for 0.2.0
 
-Checked with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS, with the same 14 Python tests and 6 JavaScript tests also passing on GitHub’s Linux runner. Home Assistant’s hassfest validator passes.
+Checked locally with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. All 15 Python tests, 6 JavaScript tests, and Ruff checks pass. The GitHub Checks workflow runs the same tests on Linux and validates the integration with hassfest.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
-- Real HA config/options flows, seven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload pass in isolated temporary storage.
+- Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
+- Synthetic `A1020` reports travel through the TLS MQTT broker to HA sensor entities. Checks cover PM2.5 and light units, filter usage-to-remaining conversion including 0/100 boundaries, partial updates, invalid readings, disconnect/reconnect and reload. HA's Activity helper classifies all four measurements as continuous sensors to exclude their routine updates.
 - Real loopback clients exercise TLS 1.2 / AES128-SHA256, mutual certificates, the four subscription topics, reserved `$aws/...` status publications, command acknowledgements, two-device isolation and impersonation rejection.
 - HTTP exposes only the public CA. Enrollment and short-lived private-key downloads require HTTPS and a valid pending setup capability.
 - Credential persistence, setup expiry, listener cleanup and redacted diagnostics pass.

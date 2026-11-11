@@ -20,6 +20,7 @@ from aiohttp import web
 from . import pki
 from .broker import CowayBroker
 from .const import MODEL, PAIRING_SECONDS, PROVISIONER_URL, REPLIES, SERVICE_CODE, SETTINGS
+from .telemetry import decode_report
 
 _LOGGER = logging.getLogger(__name__)
 SERIAL = re.compile(r"[A-Za-z0-9_-]{6,32}\Z")
@@ -69,6 +70,7 @@ class DeviceState:
     online: bool = False
     last_seen: float | None = None
     settings: dict = field(default_factory=dict)
+    telemetry: dict[str, int | None] = field(default_factory=dict)
     prefilter_cycle: int | None = None
     firmware: str | None = None
     raw: dict = field(default_factory=dict)
@@ -338,6 +340,9 @@ class LocalService:
         state = self.states[serial]
         was_online = state.online
         state.online = True
+        if not was_online:
+            # A new connection must report fresh measurements before we show them.
+            state.telemetry.clear()
         for pairing in tuple(self.pairings.values()):
             # An already connected fan must not complete a new setup before its
             # enrollment request has presented that attempt's one-time token.
@@ -380,6 +385,8 @@ class LocalService:
             for key, value in attributes.items():
                 if isinstance(key, str) and key.startswith(api + ".") and type(value) is int:
                     state.settings[key.split(".", 1)[1]] = value
+        elif api == "A1020":
+            state.telemetry.update(decode_report(attributes))
         elif api == "A1050":
             value = attributes.get("A1050.0001")
             if type(value) is int:

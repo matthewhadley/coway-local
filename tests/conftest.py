@@ -104,6 +104,14 @@ class Fan:
         result.wait_for_publish(timeout=4)
         assert result.is_published()
 
+    def report(self, attributes):
+        self.publish(
+            topic("BEvent", self.serial),
+            json.dumps(
+                {"header": {"prodId": self.serial, "API_NO": "A1020"}, "attributes": attributes}
+            ),
+        )
+
     def message(self, client, userdata, message):
         body = json.loads(message.payload)
         self.messages.put(body)

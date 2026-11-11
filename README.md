@@ -10,6 +10,7 @@ This is an experimental implementation of the observed **FFC0 / P001 / P002** pr
 
 - Fan entity: power, three manual speeds, smart and sleep modes.
 - Select entities: lighting levels 1–4, timer, smart sensitivity, pre-filter cleaning cycle.
+- Measurement sensors: PM2.5, ambient light, pre-filter remaining, and MAX2 filter remaining.
 - Connection sensor, refresh-status button, and an optional last-seen timestamp (disabled by default).
 - Independent credentials and exact MQTT topic permissions for each fan.
 - Persistent local CA, mutual TLS, 15-minute enrollment links, and redacted diagnostics.
@@ -86,10 +87,23 @@ Unloading or restarting the integration closes all three listeners. Fans reconne
 
 ## Limits and troubleshooting
 
+The four measurement sensors consume the fan's periodic `A1020` reports:
+
+| Sensor | Attribute | Interpretation |
+| --- | --- | --- |
+| PM2.5 | `A1020.0001` | Concentration in μg/m³ |
+| Ambient light | `A1020.0007` | Illuminance in lx; physical scaling has not been independently calibrated |
+| Pre-filter remaining | `A1020.0011` | `100 − usage`, percent remaining until cleaning |
+| MAX2 filter remaining | `A1020.0012` | `100 − usage`, percent remaining until replacement |
+
+PM2.5 is identified by [Coway's public sensor definitions](https://iocare2.coway.com/_next/static/chunks/3kv1xb4at9t7g.js). The light and filter mappings agree with [PyCoway's sensor codes](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/constants.py) and [filter conversion](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/devices/parser.py). All four attributes were observed on the tested fan; filter percentages have not been compared side by side with the original app.
+
+Sensors show unknown until the first report after connection, and unavailable while disconnected. Partial reports preserve other readings; invalid types, negative values, and filter usage above 100 become unknown. No additional cloud requests or device commands are sent. These are measurement sensors with history/statistics, so their routine updates are excluded from Activity.
+
 - "Last seen" changes on every MQTT message. It is disabled by default to avoid filling Activity and the recorder with routine timestamps. Enable it in the entity settings only when needed for troubleshooting. For installations created before v0.1.2, disable the existing Last seen entity manually; upgrading preserves your entity preferences. The Connection sensor remains enabled. Disabling Last seen stops new updates but does not delete historical entries.
 - Tested on one AP-1022K, MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`. Do not assume other Coway devices use this protocol.
 - The pre-filter cycle is known after its setting is acknowledged; it may initially show unknown after an HA restart.
-- Air-quality readings, filter life, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
+- PM10, other air-quality metrics, filter notification flags, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
 - Wi-Fi association failure: use a 2.4 GHz network compatible with the fan, re-enter setup mode, and check the password.
 - Certificate or broker failure: check the advertised LAN IP, the three ports, routing/VLAN isolation, and HA logs. Keep the short HTTPS download URLs intact.
 - HA setup retrying: commonly a port conflict or unreadable credential storage. Other integrations keep running.
@@ -108,9 +122,9 @@ node --test tests/web.test.mjs
 .venv/bin/python scripts/package.py
 ```
 
-Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
+Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
 
-Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created all eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
+Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created the original eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
 
 aMQTT is pinned to **0.12.1** because the adapter overrides private broker hooks. Re-run wire and HA compatibility tests before changing that pin.
 
