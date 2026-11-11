@@ -1,6 +1,6 @@
 # Validation for 0.2.1
 
-All 20 Python tests, 6 JavaScript tests and Ruff checks pass locally with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. The Checks workflow runs the same tests on Linux plus Home Assistant's hassfest validator.
+All 20 Python tests, 6 JavaScript tests and Ruff checks pass locally with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. The same tests and Home Assistant's hassfest validator [pass on Linux](https://github.com/scottjg/coway-local/actions/runs/42976372380).
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -56,5 +56,7 @@ The Connection sensor showed Connected and Last seen remained disabled. No contr
 ## v0.2.1 cleaning-interval initialization
 
 New enrollment sends the observed `A1051.0001 = 168` command and waits for a matching `A1050` confirmation before completing. Confirmed intervals are stored with each device. Tests cover fresh enrollment, re-enrollment, unrelated acknowledgements, wrong-value replies, interrupted setup and retry after restart, simultaneous updates to two devices, and retaining a later user choice without replaying the default on reconnect. Existing enrollments without a saved interval remain unchanged until the user selects one.
+
+Installed implementation commit `7af9f36` through HACS and restarted HAOS. The integration page reported version **0.2.1**. The already-enrolled physical fan initially retained its unknown interval; selecting **3 weeks** received device confirmation. After reloading Coway Local, the fan automatically reconnected and the dropdown still showed **3 weeks**, confirming persistence into a new service instance. The four measurement sensors continued reporting and Last seen remained disabled. No Bluetooth re-enrollment was performed for this release; the complete enrollment initialization sequence is covered by the real MQTT/HA tests above.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.
