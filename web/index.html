@@ -18,7 +18,8 @@
     <section class="card" aria-labelledby="setup-title">
       <h2 id="setup-title">Connect your fan</h2>
       <p id="target">Open a setup link from Home Assistant to begin.</p>
-      <p>Put the fan in Wi-Fi setup mode and close the Coway app. Then choose it in Chrome’s device picker.</p>
+      <p>Put the fan in Wi-Fi setup mode and close the Coway app. Then choose it in Chrome’s device picker. Devices are not filtered by name.</p>
+      <p class="footnote">Tested with AP-1022K. Other models are experimental and must use the same setup protocol.</p>
       <div class="actions"><button id="connect" disabled>Connect fan</button><button id="disconnect" class="secondary" disabled>Disconnect</button></div>
       <p id="device" class="device">No fan connected</p>
       <div class="divider"></div>
@@ -35,7 +36,7 @@
     <section class="card progress-card" aria-labelledby="progress-title">
       <h2 id="progress-title">Setup progress</h2>
       <ol id="steps">
-        <li data-step="bluetooth"><span class="dot"></span><div><strong>Bluetooth connected</strong><small>Read the fan’s model and address</small></div></li>
+        <li data-step="bluetooth"><span class="dot"></span><div><strong>Bluetooth connected</strong><small>Read the device identity and address</small></div></li>
         <li data-step="settings"><span class="dot"></span><div><strong>Settings accepted</strong><small>Send the encrypted setup message</small></div></li>
         <li data-step="wifi"><span class="dot"></span><div><strong>Wi-Fi connected</strong><small>Join your selected network</small></div></li>
         <li data-step="certificates"><span class="dot"></span><div><strong>Certificates ready</strong><small>Download credentials from your server</small></div></li>
@@ -45,7 +46,7 @@
     </section>
   </div>
   <details class="diagnostics"><summary>Connection details</summary><pre id="log" aria-live="off"></pre></details>
-  <footer>Coway Local 0.1.1 · AP-1022K · Credentials stay in this browser and are sent to the fan over Bluetooth. This page makes no requests to your local server.</footer>
+  <footer>Coway Local 0.2.2 · Credentials stay in this browser and are sent to the fan over Bluetooth. This page makes no requests to your local server.</footer>
 </main>
 <script type="module" src="./app.mjs"></script>
 </body>

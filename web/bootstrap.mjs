@@ -1,16 +1,32 @@
 // Enrollment data stays in memory. No HA access token or Wi-Fi password belongs here.
-import {canonicalMac, text} from './protocol.mjs';
+import {canonicalMac, text, uuid} from './protocol.mjs';
+
+export function requestFan(bluetooth) {
+  // Keep this synchronous so Chrome's chooser retains the click's user activation.
+  return bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: [uuid('ffc0'), uuid('ffc1'), uuid('ffc3')],
+  });
+}
 
 export function readIdentity(advertisedName, fields) {
+  if (!(fields?.[2] instanceof Uint8Array)
+      || (fields[1] !== undefined && !(fields[1] instanceof Uint8Array)))
+    throw new Error('The device did not return a valid Coway Bluetooth identity.');
   const mac = canonicalMac(text.decode(fields[2]));
-  // FFA0 field 1 is the module SSID (COWAYxxxxxx), not the AP-1022K model.
-  if (!advertisedName?.startsWith('AP-1022K') || !/^[A-F0-9]{12}$/.test(mac))
-    throw new Error('Unsupported device. This page supports AP-1022K only.');
-  return {name: advertisedName, mac, moduleName: text.decode(fields[1])};
+  if (!/^[A-F0-9]{12}$/.test(mac))
+    throw new Error('The device did not return a valid Wi-Fi MAC address.');
+  // Names are display labels, not evidence of protocol compatibility.
+  // FFA0 field 1 is the module SSID (often COWAYxxxxxx), not the product model.
+  const moduleName = fields[1] ? text.decode(fields[1]) : '';
+  const name = typeof advertisedName === 'string' && advertisedName.trim()
+    ? advertisedName : moduleName || 'Unnamed device';
+  return {name, mac, moduleName};
 }
 
 export function validateBundle(value, now = Date.now()) {
-  if (!value || value.v !== 1 || value.model !== 'AP-1022K'
+  if (!value || value.v !== 1 || typeof value.model !== 'string'
+      || !value.model.trim() || value.model.length > 80
       || !/^[A-Za-z0-9_-]{6,32}$/.test(value.serial ?? '')
       || !/^[A-Za-z0-9_-]{32}$/.test(value.certToken ?? '')
       || typeof value.name !== 'string' || value.name.length > 80
@@ -47,8 +63,8 @@ export function decodeSetup(fragment, now = Date.now()) {
 
 export function wifiConfig(bundle, identity, network, password, now = Date.now()) {
   validateBundle(bundle, now);
-  if (!identity?.name?.startsWith('AP-1022K') || !/^[A-F0-9]{12}$/.test(identity.mac))
-    throw new Error('This setup page supports the observed AP-1022K only.');
+  if (!/^[A-F0-9]{12}$/.test(identity?.mac ?? ''))
+    throw new Error('Read a valid device identity before sending Wi-Fi settings.');
   if (!network || !network.ssid || new TextEncoder().encode(network.ssid).length > 32
       || !/^[A-Fa-f0-9]{12}$/.test(network.bssid) || network.channel > 14)
     throw new Error('Select a 2.4 GHz Wi-Fi network from the fan’s scan.');

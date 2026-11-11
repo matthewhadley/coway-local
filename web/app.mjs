@@ -1,6 +1,6 @@
 import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs';
 
-import {decodeSetup, readIdentity, wifiConfig} from './bootstrap.mjs';
+import {decodeSetup, readIdentity, requestFan, wifiConfig} from './bootstrap.mjs';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -89,11 +89,12 @@ async function scan() {
 }
 
 $('connect').addEventListener('click',async()=>{
-  busy=true;phase='connecting';identity=null;controls();
+  busy=true;phase='connecting';identity=null;networks=[];
+  $('network').replaceChildren();controls();
   for(const element of document.querySelectorAll('[data-step]')) element.classList.remove('done');
   try {
     // Keep requestDevice directly inside this click's transient activation.
-    device=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'AP-1022K'}],optionalServices:[uuid('ffc0'),uuid('ffc1'),uuid('ffc3')]});
+    device=await requestFan(navigator.bluetooth);
     for(const channel of channels.values()) channel.remove(); channels=new Map();
     device.addEventListener('gattserverdisconnected',()=>{
       for(const channel of channels.values()) channel.close(new Error('Bluetooth disconnected. Put the fan back into setup mode and reconnect.'));
@@ -103,18 +104,24 @@ $('connect').addEventListener('click',async()=>{
     },{once:true});
     log(`Selected ${device.name || 'Coway fan'} in Chrome.`,'selected');status('Connecting over Bluetooth…');
     const gatt=await device.gatt.connect();
-    const main=await gatt.getPrimaryService(uuid('ffc0'));
-    const extra=await gatt.getPrimaryService(uuid('ffc1'));
-    for(const [service,name] of [[main,INFO],[main,SCAN],[main,CONFIG],[extra,DATA]]) {
-      const characteristic=await service.getCharacteristic(name);
-      const channel=new Channel(characteristic,name);channels.set(name,channel);
-      await characteristic.startNotifications();
+    try {
+      const main=await gatt.getPrimaryService(uuid('ffc0'));
+      const extra=await gatt.getPrimaryService(uuid('ffc1'));
+      for(const [service,name] of [[main,INFO],[main,SCAN],[main,CONFIG],[extra,DATA]]) {
+        const characteristic=await service.getCharacteristic(name);
+        const channel=new Channel(characteristic,name);channels.set(name,channel);
+        await characteristic.startNotifications();
+      }
+    } catch(error) {
+      if(error.name==='NotFoundError' || error.name==='NotSupportedError')
+        throw new Error('This device does not expose the expected Coway Bluetooth setup services. Select your fan in Wi-Fi setup mode.');
+      throw error;
     }
     await channels.get(INFO).read();
     const info=decodeProto(await channels.get(INFO).receive(12000));
     identity=readIdentity(device.name,info);phase='connected';
     $('device').textContent=`${identity.name} · Bluetooth connected`;step('bluetooth');
-    log('Fan model and address read; notification channels ready.','identity');
+    log('Device identity read; notification channels ready.','identity');
     await scan();
   } catch(error) {
     if(error.name==='NotFoundError' && /cancel/i.test(error.message)) {
@@ -186,7 +193,7 @@ async function initialize() {
   saved=decodeSetup(setupFragment);
   setupFragment='';
   $('server').textContent=new URL(saved.certSvrUrl).host;
-  $('target').textContent=saved.name+' · '+saved.model+' · '+saved.serial;
+  $('target').textContent=saved.name+' · '+saved.serial;
   $('expiry').textContent='Setup link expires at '+new Date(saved.expiresAt).toLocaleTimeString()+'.';
   status('Ready. Put the fan in setup mode, then connect.');controls();
 }

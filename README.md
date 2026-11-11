@@ -1,10 +1,10 @@
 # Coway Local
 
-A single Home Assistant custom integration for local control of the **Coway AP-1022K**. It hosts the certificate service and TLS MQTT broker inside Home Assistant. Initial Wi-Fi setup uses a nearby Mac or Android device running Chrome and Web Bluetooth.
+A single Home Assistant custom integration for local Coway control, tested with the **AP-1022K**. It hosts the certificate service and TLS MQTT broker inside Home Assistant. Initial Wi-Fi setup uses a nearby Mac or Android device running Chrome and Web Bluetooth.
 
 No add-on, external MQTT integration, Raspberry Pi, or Bluetooth adapter on the HA host is required. After enrollment, the fan connects directly to HA over your LAN. The Coway cloud and provisioning website are not needed for ongoing control.
 
-This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Other models and firmware are not yet supported.
+This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Bluetooth setup accepts devices regardless of advertised name, allowing other models to be tried if they expose the same setup services and identity format. Only AP-1022K has been tested on physical hardware; other models and firmware are unverified.
 
 ## Included
 
@@ -36,10 +36,10 @@ Reserve the HA host address in your router before provisioning. Changing the add
 ## Add a fan
 
 1. Open **Coway Local → Configure → Add or provision a fan**.
-2. Enter the serial number from the fan’s product label and a friendly name. BLE exposes the model and MAC address, but not the serial number.
+2. Enter the serial number from the fan’s product label and a friendly name. BLE exposes a device name and MAC address, but not the serial number.
 3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
 4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
-5. Choose the `AP-1022K_...` device, then select a 2.4 GHz Wi-Fi network from the fan’s scan. Enter its Wi-Fi password and start setup.
+5. Choose your fan in Chrome's picker, then select a 2.4 GHz Wi-Fi network from the fan’s scan. The picker shows all nearby BLE devices; your fan's name does not have to start with `AP-1022K`. The page checks its setup services and identity response before accepting Wi-Fi settings. Enter its Wi-Fi password and start setup.
 6. When the page says the fan reports connected, return to HA and press **Submit**. HA confirms the connection and the **3-week pre-filter cleaning interval** applied during enrollment.
 
 Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
@@ -104,6 +104,7 @@ Sensors show unknown until the first report after connection, and unavailable wh
 
 - "Last seen" changes on every MQTT message. It is disabled by default to avoid filling Activity and the recorder with routine timestamps. Enable it in the entity settings only when needed for troubleshooting. For installations created before v0.1.2, disable the existing Last seen entity manually; upgrading preserves your entity preferences. The Connection sensor remains enabled. Disabling Last seen stops new updates but does not delete historical entries.
 - Tested on one AP-1022K, MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`. Do not assume other Coway devices use this protocol.
+- The name-independent setup page enables experiments with other models, not automatic multi-model support. The server still uses the AP-1022K control/telemetry mappings and MQTT service code `002AIR007`; its model metadata also defaults to AP-1022K. Compatible Bluetooth services alone do not establish compatibility with those server mappings.
 - A read-only query for the pre-filter cleaning interval has not been identified. New enrollments establish a confirmed 3-week default, and confirmed changes are saved across HA restarts. Fans enrolled before v0.2.1 keep their existing setting; select an interval once to establish its saved value without provisioning again. Until then, an older installation may show unknown.
 - PM10, other air-quality metrics, filter notification flags, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
 - Wi-Fi association failure: use a 2.4 GHz network compatible with the fan, re-enter setup mode, and check the password.
