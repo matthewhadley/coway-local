@@ -1,4 +1,4 @@
-# Validation for 0.2.4
+# Validation for 0.2.5
 
 Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 23 Python tests and 12 JavaScript tests.
 
@@ -94,5 +94,19 @@ every enrollment URL. Two tests solely for upgrades from development snapshots w
 removed; current enrollment, name persistence, re-enrollment, user overrides, and
 interrupted initialization remain covered by 23 Python and 12 JavaScript tests.
 The original captured codec fixture is retained as independent protocol evidence.
+
+## v0.2.5 setup wizard
+
+The hosted page shows one stage at a time: Fan, Wi-Fi, Review, Connect. Browser
+checks against the real page and a synthetic Web Bluetooth adapter exercised
+chooser cancellation, unsupported services, an empty scan followed by rescan,
+password validation, open networks, Back navigation, Wi-Fi failure and retry,
+disconnection during review and provisioning, expired and missing setup links,
+and successful completion with password clearing. Only the active panel is exposed; focus moves to its heading.
+The independent codec and setup validation suite still passes (12 JavaScript tests).
+
+The adapter and loopback preview server live under `tests/browser/` and are not
+published with `web/`. These are simulated UI checks, not a new physical fan
+enrollment. The enrollment format and server behavior are unchanged.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.

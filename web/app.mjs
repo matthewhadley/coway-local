@@ -1,6 +1,5 @@
 import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs';
-
-import {decodeSetup, readIdentity, requestFan, wifiConfig} from './bootstrap.mjs?v=0.2.4';
+import {decodeSetup,readIdentity,requestFan,wifiConfig} from './bootstrap.mjs?v=0.2.5';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -8,41 +7,136 @@ history.replaceState(null, '', location.pathname + location.search);
 
 const $ = id => document.getElementById(id);
 const INFO=uuid('ffa0'), SCAN=uuid('ffa1'), CONFIG=uuid('ffa2'), DATA=uuid('ff00');
-let saved, device, identity, channels=new Map(), busy=false, phase='idle', networks=[], observedProgress=[];
+const stages=['fan','wifi','review','connect'];
+let saved, device, identity, channels=new Map(), busy=false, phase='idle', stage='fan';
+let networks=[], generation=0, expiryTimer;
+const connected=()=>!!device?.gatt?.connected && !!identity;
+const selectedNetwork=()=>networks[Number($('network').value)];
 function log(message) {
-  const line=`${new Date().toLocaleTimeString()}  ${message}`;
-  $('log').textContent+=line+'\n'; $('log').scrollTop=$('log').scrollHeight;
+  $('diagnostics').hidden=false;
+  $('log').textContent+=`${new Date().toLocaleTimeString()}  ${message}\n`;
+  $('log').scrollTop=$('log').scrollHeight;
 }
-function status(message, style='') { $('status').textContent=message; $('status').className=style; }
-function step(name) { document.querySelector(`[data-step="${name}"]`).classList.add('done'); }
+function status(message='', style='') {
+  $('status').textContent=message;
+  $('status').className=style;
+  $('status').hidden=!message;
+}
+function showStage(next, focus=true) {
+  stage=next;
+  for(const section of document.querySelectorAll('.card > section')) section.hidden=section.id!==`panel-${next}`;
+  for(const item of document.querySelectorAll('[data-stage]')) {
+    const current=item.dataset.stage===next;
+    if(current) item.setAttribute('aria-current','step'); else item.removeAttribute('aria-current');
+    item.classList.toggle('done',stages.indexOf(item.dataset.stage)<stages.indexOf(next));
+  }
+  $(`panel-${next}`).querySelector('[data-status-slot]').append($('status'));
+  status();
+  if(focus) $(`title-${next}`).focus({preventScroll:true});
+  controls();
+}
+function progress(name) {
+  if(name) document.querySelector(`[data-step="${name}"]`).classList.add('done');
+  let active=false;
+  for(const item of document.querySelectorAll('[data-step]')) {
+    const current=!active && !item.classList.contains('done');
+    item.classList.toggle('active',current);
+    if(current) active=true;
+    item.setAttribute('aria-label',`${item.textContent.trim()}: ${item.classList.contains('done')?'complete':current?'in progress':'waiting'}`);
+  }
+}
 function controls() {
-  const connected=!!device?.gatt?.connected && !!identity;
-  $('connect').disabled=!saved || busy || connected || !navigator.bluetooth;
-  $('disconnect').disabled=!device?.gatt?.connected || busy;
-  $('scan').disabled=!connected || busy;
-  $('network').disabled=busy || !saved;
-  $('password').disabled=busy || !saved;
-  $('provision').disabled=!connected || busy || !networks.length;
+  const ready=!!saved && connected() && !busy;
+  $('connect').hidden=connected();
+  $('connect').disabled=!saved || busy || !navigator.bluetooth;
+  $('continue-wifi').hidden=!connected();
+  $('continue-wifi').disabled=!ready;
+  $('disconnect').hidden=!connected();
+  $('disconnect').disabled=busy;
+  $('scan').disabled=!ready;
+  $('network').disabled=!ready || !networks.length;
+  $('password').disabled=!ready;
+  $('show-password').disabled=!ready;
+  $('review').disabled=!ready || !selectedNetwork();
+  $('provision').disabled=!ready || !selectedNetwork();
+  $('back-fan').disabled=busy;
+  $('back-wifi').disabled=busy;
+  $('retry').disabled=busy;
+}
+function clearPassword() {
+  $('password').value='';
+  $('password').type='password';
+  $('show-password').checked=false;
+}
+function releaseConnection() {
+  generation++;
+  const previous=device;
+  device=null; identity=null; networks=[];
+  for(const channel of channels.values()) {
+    channel.close(new Error('Bluetooth connection ended.'));
+    channel.remove();
+  }
+  channels=new Map();
+  previous?.gatt?.disconnect();
+  clearPassword();
+  $('network').replaceChildren();
+  $('device').hidden=true;
+}
+function unavailable(error) {
+  saved=null;busy=false;phase='unavailable';
+  clearTimeout(expiryTimer);
+  releaseConnection();
+  showStage('unavailable');
+  status(error.message || String(error),'error');
+  $('expiry').textContent='';
+}
+function ensureLink() {
+  if(!saved || saved.expiresAt<=Date.now()) {
+    unavailable(new Error('This setup link expired. Create a new Bluetooth setup link in Home Assistant.'));
+    return false;
+  }
+  return true;
 }
 function fail(error) {
-  phase='error'; busy=false;
+  busy=false;
+  if(!ensureLink()) return;
+  if(stage==='connect') {
+    phase='error';
+    $('title-connect').textContent='The fan could not connect';
+    $('connect-help').textContent='Review your network and password, then try again. If the fan left setup mode, put it back into setup mode and reconnect.';
+    $('retry-actions').hidden=false;
+    for(const item of document.querySelectorAll('[data-step]')) {
+      item.classList.remove('active');
+      if(!item.classList.contains('done')) item.setAttribute('aria-label',`${item.textContent.trim()}: not completed`);
+    }
+  }
   status(error.message || String(error),'error');
-  log(`${error.name || 'Error'}: ${error.message || error}`,'error'); controls();
+  log(`${error.name || 'Error'}: ${error.message || error}`);
+  controls();
+}
+function networkFields() {
+  const network=selectedNetwork();
+  $('password-fields').hidden=!network || !network.security;
+  $('open-network').hidden=!network || !!network.security;
+  controls();
 }
 function options(items) {
-  const current=networks[Number($('network').value)]?.bssid || saved.bssid;
+  const previous=selectedNetwork()?.bssid;
   networks=items.filter(n=>n.ssid && n.channel<=14).sort((a,b)=>b.rssi-a.rssi);
   $('network').replaceChildren();
   networks.forEach((network,index)=>{
-    const option=document.createElement('option'); option.value=String(index);
+    const option=document.createElement('option');option.value=String(index);
     option.textContent=`${network.ssid}${network.channel ? ` · ch ${network.channel}` : ''}`;
     $('network').append(option);
   });
-  let index=networks.findIndex(n=>n.bssid===current);
-  if(index<0) index=networks.findIndex(n=>n.ssid===saved.ssid && n.channel<=14);
-  $('network').value=String(Math.max(index,0)); controls();
+  if(networks.length) $('network').value=String(Math.max(0,networks.findIndex(n=>n.bssid===previous)));
+  else {
+    const option=document.createElement('option');option.value='';option.textContent='No 2.4 GHz networks found';
+    $('network').append(option);
+  }
+  if(selectedNetwork()?.bssid!==previous) clearPassword();
+  networkFields();
 }
-
 class Channel {
   constructor(characteristic, name) {
     this.characteristic=characteristic;this.name=name;this.queue=[];this.waiters=[];this.assembler=new Reassembler();this.count=0;this.error=null;
@@ -81,125 +175,188 @@ class Channel {
 }
 
 async function scan() {
-  status('The fan is scanning for nearby Wi-Fi networks…');
+  status('Looking for nearby Wi-Fi networks…');
   await channels.get(SCAN).read();
   const result=parseScan(await channels.get(SCAN).receive(25000));
-  options(result);log(`Wi-Fi scan returned ${result.filter(n=>n.ssid).length} named access points.`,'scan');
-  status('Fan connected. Check the Wi-Fi network, then start setup.');
+  options(result);
+  log(`Wi-Fi scan returned ${result.filter(n=>n.ssid).length} named access points.`);
+  status(networks.length?'':'No 2.4 GHz networks were found. Check that your router is nearby and scan again.');
 }
-
+async function scanNetworks() {
+  if(!ensureLink()) return;
+  const attempt=generation;
+  busy=true;controls();
+  try {await scan();} catch(error) {if(attempt===generation) fail(error);}
+  finally {if(attempt===generation) {busy=false;controls();}}
+}
 $('connect').addEventListener('click',async()=>{
-  busy=true;phase='connecting';identity=null;networks=[];
-  if(saved?.useBluetoothName) $('target').textContent='Select your fan · '+saved.serial;
-  $('network').replaceChildren();controls();
-  for(const element of document.querySelectorAll('[data-step]')) element.classList.remove('done');
+  if(!ensureLink()) return;
+  releaseConnection();
+  const attempt=generation;
+  busy=true;phase='connecting';controls();
+  status('Choose your fan in the Bluetooth picker.');
   try {
     // Keep requestDevice directly inside this click's transient activation.
-    device=await requestFan(navigator.bluetooth);
-    for(const channel of channels.values()) channel.remove(); channels=new Map();
+    const selected=await requestFan(navigator.bluetooth);
+    if(attempt!==generation) return;
+    device=selected;
     device.addEventListener('gattserverdisconnected',()=>{
-      for(const channel of channels.values()) channel.close(new Error('Bluetooth disconnected. Put the fan back into setup mode and reconnect.'));
-      if(phase!=='complete') $('device').textContent='Bluetooth disconnected';
-      $('password').value='';
-      log('Bluetooth link closed.','disconnected');controls();
+      if(device!==selected) return;
+      releaseConnection();busy=false;
+      if(phase!=='complete') {
+        phase='idle';showStage('fan');
+        status('Bluetooth disconnected. Put the fan back into setup mode, then choose it again.','error');
+      }
+      log('Bluetooth link closed.');controls();
     },{once:true});
-    log(`Selected ${device.name || 'Coway fan'} in Chrome.`,'selected');status('Connecting over Bluetooth…');
-    const gatt=await device.gatt.connect();
+    log(`Selected ${device.name || 'Coway fan'} in Chrome.`);
+    status('Connecting to your fan…');
+    const gatt=await selected.gatt.connect();
+    if(attempt!==generation) {selected.gatt.disconnect();return;}
     try {
       const main=await gatt.getPrimaryService(uuid('ffc0'));
       const extra=await gatt.getPrimaryService(uuid('ffc1'));
       for(const [service,name] of [[main,INFO],[main,SCAN],[main,CONFIG],[extra,DATA]]) {
         const characteristic=await service.getCharacteristic(name);
+        if(attempt!==generation) return;
         const channel=new Channel(characteristic,name);channels.set(name,channel);
         await characteristic.startNotifications();
       }
     } catch(error) {
       if(error.name==='NotFoundError' || error.name==='NotSupportedError')
-        throw new Error('This device does not expose the expected Coway Bluetooth setup services. Select your fan in Wi-Fi setup mode.');
+        throw new Error('This device does not expose the expected Coway setup services. Put your fan in Wi-Fi setup mode and choose it again.');
       throw error;
     }
+    if(attempt!==generation) return;
     await channels.get(INFO).read();
     const info=decodeProto(await channels.get(INFO).receive(12000));
-    identity=readIdentity(device.name,info);phase='connected';
-    if(saved.useBluetoothName) $('target').textContent=identity.name+' · '+saved.serial;
-    $('device').textContent=`${identity.name} · Bluetooth connected`;step('bluetooth');
-    log('Device identity read; notification channels ready.','identity');
+    if(attempt!==generation) return;
+    identity=readIdentity(selected.name,info);phase='connected';
+    if(saved.useBluetoothName) $('target').textContent=identity.name;
+    $('device').textContent=`${identity.name} · Bluetooth connected`;$('device').hidden=false;
+    log('Device identity read; notification channels ready.');
+    showStage('wifi');networkFields();
     await scan();
   } catch(error) {
+    if(attempt!==generation) return;
+    if(!identity) {
+      releaseConnection();busy=false;showStage('fan');
+    }
     if(error.name==='NotFoundError' && /cancel/i.test(error.message)) {
-      phase='idle';status('Device selection canceled. Connect again when the fan is in setup mode.');
-      log('Device chooser canceled; no settings sent.','canceled');
+      phase='idle';status('No fan selected. Choose your fan when it is in setup mode.');
+      log('Device chooser canceled; no settings sent.');
     } else fail(error);
-    if(device?.gatt?.connected && !identity) device.gatt.disconnect();
+  } finally {
+    if(attempt===generation) busy=false;
+    controls();
   }
-  finally {busy=false;controls();}
+});
+$('continue-wifi').addEventListener('click',()=>{
+  if(!ensureLink()) return;
+  showStage('wifi');
+  if(!networks.length) scanNetworks();
+});
+$('scan').addEventListener('click',scanNetworks);
+$('disconnect').addEventListener('click',()=>{
+  releaseConnection();phase='idle';
+  if(saved?.useBluetoothName) $('target').textContent='Your Coway fan';
+  showStage('fan');
+});
+$('back-fan').addEventListener('click',()=>showStage('fan'));
+$('back-wifi').addEventListener('click',()=>showStage('wifi'));
+$('retry').addEventListener('click',()=>{
+  if(!ensureLink()) return;
+  showStage(connected()?'wifi':'fan');
+});
+$('network').addEventListener('change',()=>{clearPassword();networkFields();status();});
+$('show-password').addEventListener('change',()=>{$('password').type=$('show-password').checked?'text':'password';});
+$('wifi-form').addEventListener('submit',event=>{
+  event.preventDefault();
+  if(busy || !ensureLink()) return;
+  try {
+    wifiConfig(saved,identity,selectedNetwork(),$('password').value);
+    $('review-fan').textContent=saved.useBluetoothName?identity.name:saved.name;
+    $('review-network').textContent=selectedNetwork().ssid;
+    showStage('review');
+  } catch(error) {
+    fail(error);
+    if(selectedNetwork()?.security) $('password').focus();
+  }
 });
 
-$('scan').addEventListener('click',async()=>{busy=true;controls();try{await scan();}catch(error){fail(error);}finally{busy=false;controls();}});
-$('disconnect').addEventListener('click',()=>{device?.gatt?.disconnect();identity=null;phase='idle';status('Disconnected. Put the fan in setup mode to connect again.');controls();});
-$('show-password').addEventListener('change',()=>{$('password').type=$('show-password').checked?'text':'password';});
-
-async function send(message, label) {
-  // Web Bluetooth does not expose negotiated ATT MTU. Start with 20-byte
-  // characteristic values (16 payload bytes + 4 Coway framing bytes).
+async function send(message,label) {
+  // Web Bluetooth does not expose negotiated ATT MTU. Use 20-byte values.
   const packets=fragments(message,20);
-  for(let index=0;index<packets.length;index++) {
-    await channels.get(CONFIG).characteristic.writeValueWithResponse(packets[index]);
-    status(`${label} (${index+1}/${packets.length})…`);
-  }
-  log(`${label}: ${packets.length} writes, maximum 20 bytes each.`,'sent',{packetCount:packets.length});
+  for(const packet of packets) await channels.get(CONFIG).characteristic.writeValueWithResponse(packet);
+  log(`${label}: ${packets.length} writes, maximum 20 bytes each.`);
 }
-async function waitStatus(command, final, timeout) {
+async function waitStatus(command,final,timeout) {
   const deadline=performance.now()+timeout;
   while(performance.now()<deadline) {
     const fields=decodeProto(await channels.get(CONFIG).receive(Math.max(1,deadline-performance.now())));
-    const code=fields[3] ?? 0;observedProgress.push(code);
+    const code=fields[3] ?? 0;
     const description=STATUS[code] || `Device status ${code}`;
-    log(`${code}: ${description}`,'progress',{code});status(description+'…');
+    log(`${code}: ${description}`);
     if(fields[2]!==1 || FAILURE_CODES.has(code)) throw new Error(description);
-    if(code===71) step('settings');
-    if(code===10) step('wifi');
-    if(code===50) step('certificates');
+    if(code===10) {progress('wifi');status('Getting credentials from your local server…');}
+    if(code===50) {progress('certificates');status('Connecting to your local server…');}
     if(fields[1]===command && code===final) return;
   }
   throw new Error('Timed out waiting for device setup');
 }
-
 $('provision').addEventListener('click',async()=>{
-  busy=true;phase='provisioning';observedProgress=[];controls();
+  if(!ensureLink()) return;
+  let config;
   try {
-    const network=networks[Number($('network').value)];
-    if(!network || !device?.gatt?.connected) throw new Error('Connect the fan and select a network first');
-    if(network.security && !$('password').value) throw new Error('Enter the Wi-Fi password');
-    const config=wifiConfig(saved,identity,network,$('password').value);
+    if(!connected()) throw new Error('Reconnect the fan before starting setup.');
+    config=wifiConfig(saved,identity,selectedNetwork(),$('password').value);
+  } catch(error) {showStage('wifi');fail(error);return;}
+  const attempt=generation;
+  busy=true;phase='provisioning';
+  $('success').hidden=true;$('progress').hidden=false;$('retry-actions').hidden=true;
+  $('title-connect').textContent='Connecting your fan';
+  $('connect-help').hidden=false;
+  $('connect-help').textContent='Keep this tab open and stay near the fan. This can take up to two minutes.';
+  for(const item of document.querySelectorAll('[data-step]')) item.classList.remove('done');
+  showStage('connect');progress();status('Sending settings to your fan…');
+  try {
     channels.get(CONFIG).queue=[];
     const random=randomLetters(20);
     const message=await p002(config,random);
-    log('Starting browser-only Bluetooth provisioning.','started');
+    if(attempt!==generation) return;
+    log('Starting browser-only Bluetooth provisioning.');
     await send(p001(random),'Establishing setup key');await waitStatus(1,72,15000);
-    await send(message,'Sending Wi-Fi settings');await waitStatus(2,61,120000);
-    step('mqtt');phase='complete';status('Fan reports connected. Return to Home Assistant and click Submit to confirm setup.','success');
+    await send(message,'Sending Wi-Fi settings');
+    progress('settings');status('Waiting for the fan to join Wi-Fi…');
+    await waitStatus(2,61,120000);
+    if(attempt!==generation) return;
+    progress('mqtt');phase='complete';busy=false;
     log('Fan reported broker connection; Home Assistant will verify its authenticated session.');
-    $('password').value='';saved=null;
-    device.gatt.disconnect();identity=null;
-  } catch(error) {fail(error);}
-  finally {busy=false;controls();}
+    saved=null;clearTimeout(expiryTimer);releaseConnection();
+    $('title-connect').textContent='Finish in Home Assistant';
+    $('connect-help').hidden=true;$('progress').hidden=true;$('success').hidden=false;
+    $('expiry').textContent='';status();controls();$('title-connect').focus({preventScroll:true});
+  } catch(error) {if(attempt===generation) fail(error);}
+  finally {if(attempt===generation) {busy=false;controls();}}
 });
-
-async function initialize() {
+function initialize() {
   if(!window.isSecureContext || !navigator.bluetooth || !crypto.subtle) {
-    $('environment').textContent='Compatible Chrome required';
-    throw new Error('Use Chrome on a Mac or Android phone over HTTPS (or localhost). Safari and iPhone browsers are not supported.');
+    $('environment').textContent='Chrome required';
+    throw new Error('Open this setup link in Chrome on a Mac or Android phone. Use HTTPS or localhost. Safari and iPhone browsers are not supported.');
   }
-  $('environment').textContent='Web Bluetooth available';
-  saved=decodeSetup(setupFragment);
-  setupFragment='';
+  $('environment').textContent='Bluetooth ready';
+  saved=decodeSetup(setupFragment);setupFragment='';
   $('server').textContent=new URL(saved.certSvrUrl).host;
-  $('target').textContent=(saved.useBluetoothName?'Select your fan':saved.name)+' · '+saved.serial;
+  $('target').textContent=saved.useBluetoothName?'Your Coway fan':saved.name;
+  $('serial').textContent='Serial '+saved.serial;
   $('expiry').textContent='Setup link expires at '+new Date(saved.expiresAt).toLocaleTimeString()+'.';
-  status('Ready. Put the fan in setup mode, then connect.');controls();
+  showStage('fan',false);
+  expiryTimer=setTimeout(()=>{
+    // Let an in-flight enrollment finish; the server also enforces expiry.
+    if(phase!=='provisioning' && phase!=='complete') ensureLink();
+  },Math.min(2147483647,Math.max(0,saved.expiresAt-Date.now()+1)));
 }
-initialize().catch(fail);
-window.addEventListener('pagehide',()=>{saved=null;$('password').value='';device?.gatt?.disconnect();});
+try {initialize();} catch(error) {setupFragment='';unavailable(error);}
+window.addEventListener('pagehide',()=>{saved=null;clearTimeout(expiryTimer);releaseConnection();});
 // Pasting a fresh setup link into this tab is a same-document navigation.
 window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#setup=')) location.reload();});

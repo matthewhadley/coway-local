@@ -39,8 +39,8 @@ Reserve the HA host address in your router before provisioning. Changing the add
 2. Enter the serial number from the fan’s product label. Leave **Custom device name** blank for automatic naming, or enter a name such as “Bedroom purifier.” BLE exposes a device name and MAC address, but not the serial number.
 3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
 4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
-5. Choose your fan in Chrome's picker, then select a 2.4 GHz Wi-Fi network from the fan’s scan. The picker filters for Coway setup advertisement formats; your fan's name does not have to start with `AP-1022K`. The page checks its setup services and identity response before accepting Wi-Fi settings. Enter its Wi-Fi password and start setup.
-6. When the page says the fan reports connected, return to HA and press **Submit**. HA confirms the connection and the **3-week pre-filter cleaning interval** applied during enrollment.
+5. Follow the four-step wizard: **Fan → Wi-Fi → Review → Connect**. Choose the fan, select a 2.4 GHz Wi-Fi network and enter its password, then review the fan, network, and local server before starting setup. Back lets you revise the details. The Bluetooth picker filters for Coway setup advertisements without an exact model-name restriction; the page checks the selected device's services and identity.
+6. Watch connection progress in the final step. When it says **Finish in Home Assistant**, return to HA and press **Submit**. HA confirms the connection and the **3-week pre-filter cleaning interval** applied during enrollment.
 
 Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
 
@@ -67,7 +67,7 @@ The browser carries the Bluetooth label in a base64url path
 on the fan's existing HTTPS enrollment request. The same token, serial and MAC
 checks apply before the server accepts the name. Wi-Fi credentials and tokens
 are not included in that path; short certificate/key download URLs are unchanged.
-The integration and setup page are developed together; use matching versions.
+Use the current integration and hosted setup page together.
 No migrations or compatibility paths for earlier development snapshots are included.
 
 The browser displays the destination server before transmitting anything. Its setup token is in the URL fragment, which is not sent in the HTTPS request, and the page removes that fragment immediately. The Wi-Fi password is entered only in the page, stays in memory, and is cleared after completion or disconnection. HA does not receive or store the Wi-Fi password.
@@ -149,7 +149,7 @@ node --test tests/web.test.mjs
 .venv/bin/python scripts/package.py
 ```
 
-Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Cleaning-interval tests cover the enrollment default, matching acknowledgements, interrupted initialization, later preferences surviving restarts, and re-enrollment. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
+Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Cleaning-interval tests cover the enrollment default, matching acknowledgements, interrupted initialization, later preferences surviving restarts, and re-enrollment. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan. For interactive wizard checks with synthetic Bluetooth responses, run `python tests/browser/serve.py` and open `http://localhost:18765/preview`. Its scenario controls exercise cancellation, unsupported devices, empty scans, Wi-Fi failure, and disconnect recovery without touching hardware. The test adapter is outside the published `web/` directory.
 
 Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created the original eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
 

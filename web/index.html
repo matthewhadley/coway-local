@@ -7,47 +7,86 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Coway · Local setup</title>
 <link rel="icon" href="./icon.png">
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./style.css?v=0.2.5">
 </head>
 <body>
 <main>
   <header><span class="eyebrow">COWAY / LOCAL SETUP</span><span id="environment" class="badge">Checking browser…</span></header>
-  <h1>A local home for your fan.</h1>
-  <p class="intro">Use this browser’s Bluetooth to connect your fan to Wi-Fi and your local server.</p>
-  <div class="layout">
-    <section class="card" aria-labelledby="setup-title">
-      <h2 id="setup-title">Connect your fan</h2>
-      <p id="target">Open a setup link from Home Assistant to begin.</p>
-      <p>Put the fan in Wi-Fi setup mode and close the Coway app. Then choose it in Chrome’s device picker. The list is filtered for Coway setup advertisements, without requiring an exact model name.</p>
-      <p class="footnote">Tested with AP-1022K. Other models are experimental and must use the same setup protocol.</p>
-      <div class="actions"><button id="connect" disabled>Connect fan</button><button id="disconnect" class="secondary" disabled>Disconnect</button></div>
-      <p id="device" class="device">No fan connected</p>
-      <div class="divider"></div>
-      <label for="network">Wi-Fi network</label>
-      <div class="network-row"><select id="network" disabled aria-label="Wi-Fi network"></select><button id="scan" class="secondary" disabled>Scan</button></div>
-      <label for="password">Wi-Fi password</label>
-      <input id="password" type="password" autocomplete="off" spellcheck="false" disabled>
-      <label class="show"><input id="show-password" type="checkbox"> Show password</label>
-      <div class="server"><span>Local server</span><strong id="server">Checking…</strong></div>
-      <button id="provision" class="wide" disabled>Connect to Wi-Fi &amp; local server</button>
-      <p id="expiry" class="footnote"></p>
-      <p class="footnote">The browser is needed only for setup. Your fan connects directly to the server afterward.</p>
+  <h1>Set up your fan.</h1>
+  <p class="intro">A few steps now. Local control from here on.</p>
+  <ol class="wizard-steps" aria-label="Setup steps">
+    <li data-stage="fan" aria-current="step"><span>1</span>Fan</li>
+    <li data-stage="wifi"><span>2</span>Wi-Fi</li>
+    <li data-stage="review"><span>3</span>Review</li>
+    <li data-stage="connect"><span>4</span>Connect</li>
+  </ol>
+  <div class="card">
+    <section id="panel-fan" aria-labelledby="title-fan">
+      <p class="step-label">Step 1 of 4</p>
+      <h2 id="title-fan" tabindex="-1">Connect to your fan</h2>
+      <p>Keep this device near your fan. Bluetooth is only needed during setup.</p>
+      <div class="device-summary"><span class="summary-label">Setting up</span><strong id="target">Open a setup link from Home Assistant to begin.</strong><span id="serial" class="muted"></span></div>
+      <ol class="instructions"><li>Put the fan in Wi-Fi / Bluetooth setup mode.</li><li>Close the Coway app on nearby phones.</li><li>Choose your fan in Chrome’s Bluetooth picker.</li></ol>
+      <p id="device" class="connection" hidden></p>
+      <div data-status-slot></div>
+      <div class="actions"><button id="connect" disabled>Choose fan</button><button id="continue-wifi" hidden>Continue</button><button id="disconnect" class="secondary" hidden>Choose another fan</button></div>
+      <details class="help"><summary>Which fans can I choose?</summary><p>The picker shows devices advertising Coway setup services. AP-1022K has been tested; other models using the same setup protocol are experimental.</p></details>
     </section>
-    <section class="card progress-card" aria-labelledby="progress-title">
-      <h2 id="progress-title">Setup progress</h2>
-      <ol id="steps">
-        <li data-step="bluetooth"><span class="dot"></span><div><strong>Bluetooth connected</strong><small>Read the device identity and address</small></div></li>
-        <li data-step="settings"><span class="dot"></span><div><strong>Settings accepted</strong><small>Send the encrypted setup message</small></div></li>
-        <li data-step="wifi"><span class="dot"></span><div><strong>Wi-Fi connected</strong><small>Join your selected network</small></div></li>
-        <li data-step="certificates"><span class="dot"></span><div><strong>Certificates ready</strong><small>Download credentials from your server</small></div></li>
-        <li data-step="mqtt"><span class="dot"></span><div><strong>Fan reports connected</strong><small>Return to Home Assistant to confirm</small></div></li>
+    <section id="panel-wifi" aria-labelledby="title-wifi" hidden>
+      <p class="step-label">Step 2 of 4</p>
+      <h2 id="title-wifi" tabindex="-1">Choose your Wi-Fi</h2>
+      <p>Select a 2.4 GHz network that can reach your Home Assistant server.</p>
+      <form id="wifi-form" novalidate>
+        <label for="network">Wi-Fi network</label>
+        <div class="network-row"><select id="network" disabled><option value="">Scanning for networks…</option></select><button id="scan" type="button" class="secondary" disabled>Scan again</button></div>
+        <div id="password-fields">
+          <label for="password">Wi-Fi password</label>
+          <input id="password" type="password" autocomplete="off" spellcheck="false" aria-describedby="password-help" disabled>
+          <label class="show"><input id="show-password" type="checkbox"> Show password</label>
+          <p id="password-help" class="footnote">Sent directly to the fan over Bluetooth. Home Assistant does not receive your Wi-Fi password.</p>
+        </div>
+        <p id="open-network" class="footnote" hidden>This network does not require a password.</p>
+        <div data-status-slot></div>
+        <div class="actions"><button id="review" type="submit" disabled>Continue</button><button id="back-fan" type="button" class="secondary">Back</button></div>
+      </form>
+    </section>
+    <section id="panel-review" aria-labelledby="title-review" hidden>
+      <p class="step-label">Step 3 of 4</p>
+      <h2 id="title-review" tabindex="-1">Ready to connect?</h2>
+      <p>Your fan will use this Wi-Fi network to connect directly to your local server.</p>
+      <dl class="review-summary">
+        <div><dt>Fan</dt><dd id="review-fan"></dd></div>
+        <div><dt>Wi-Fi network</dt><dd id="review-network"></dd></div>
+        <div><dt>Local server</dt><dd id="server"></dd></div>
+      </dl>
+      <p>Keep this tab open and stay near the fan until setup finishes.</p>
+      <div data-status-slot></div>
+      <div class="actions"><button id="provision" disabled>Connect fan</button><button id="back-wifi" class="secondary">Back</button></div>
+    </section>
+    <section id="panel-connect" aria-labelledby="title-connect" hidden>
+      <p class="step-label">Step 4 of 4</p>
+      <h2 id="title-connect" tabindex="-1">Connecting your fan</h2>
+      <p id="connect-help">Keep this tab open and stay near the fan. This can take up to two minutes.</p>
+      <ol id="progress" class="progress" aria-label="Connection progress">
+        <li data-step="settings"><span class="dot"></span><span>Send settings to the fan</span></li>
+        <li data-step="wifi"><span class="dot"></span><span>Join your Wi-Fi network</span></li>
+        <li data-step="certificates"><span class="dot"></span><span>Get credentials from your server</span></li>
+        <li data-step="mqtt"><span class="dot"></span><span>Connect to your local server</span></li>
       </ol>
-      <div id="status" role="status" aria-live="polite">Preparing local setup…</div>
+      <div id="success" hidden><div class="success-icon" aria-hidden="true">✓</div><p>Your fan reports a connection to your local server.</p><div class="next-action"><strong>One last step in Home Assistant</strong><p>Return to its setup dialog and select <strong>Submit</strong> to confirm. You can then close this tab.</p></div></div>
+      <div data-status-slot></div>
+      <div id="retry-actions" class="actions" hidden><button id="retry">Review and retry</button></div>
     </section>
+    <section id="panel-unavailable" aria-labelledby="title-unavailable" hidden>
+      <h2 id="title-unavailable" tabindex="-1">Setup is not ready</h2>
+      <div data-status-slot></div>
+    </section>
+    <div id="status" role="status" aria-live="polite" hidden></div>
+    <details id="diagnostics" class="diagnostics" hidden><summary>Connection details</summary><pre id="log" aria-live="off"></pre></details>
   </div>
-  <details class="diagnostics"><summary>Connection details</summary><pre id="log" aria-live="off"></pre></details>
-  <footer>Coway Local 0.2.4 · Credentials stay in this browser and are sent to the fan over Bluetooth. This page makes no requests to your local server.</footer>
+  <p id="expiry" class="expiry"></p>
+  <footer>Coway Local 0.2.5 · The browser is only needed for setup.</footer>
 </main>
-<script type="module" src="./app.mjs?v=0.2.4"></script>
+<script type="module" src="./app.mjs?v=0.2.5"></script>
 </body>
 </html>
