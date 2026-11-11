@@ -95,6 +95,13 @@ async def test_identity_cannot_impersonate_or_evict_another_fan(service, fan):
         await service.set(other.serial, "speed", "3")
         assert service.states[fan.serial].settings["0003"] == 2
         assert service.states[other.serial].settings["0003"] == 3
+        await asyncio.gather(
+            service.set(fan.serial, "prefilter_cycle", "2 weeks"),
+            service.set(other.serial, "prefilter_cycle", "4 weeks"),
+        )
+        saved = json.loads((service.root / "devices.json").read_text())["devices"]
+        assert saved[fan.serial]["prefilter_cycle"] == 112
+        assert saved[other.serial]["prefilter_cycle"] == 224
     finally:
         await asyncio.to_thread(other.close)
 

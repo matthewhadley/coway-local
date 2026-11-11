@@ -64,6 +64,7 @@ class Fan:
     def __init__(self, root, port, serial="TEST000001", certificate=None, respond=True):
         self.serial = serial
         self.respond = respond
+        self.prefilter_reply = None
         self.port = port
         self.connections, self.subacks, self.messages = queue.Queue(), queue.Queue(), queue.Queue()
         self.settings = {"0001": 1, "0002": 0, "0003": 1, "0007": 0, "0008": 0, "000A": 3}
@@ -128,7 +129,12 @@ class Fan:
         attrs = (
             {f"{reply}.{k}": v for k, v in self.settings.items()}
             if api != "A1051"
-            else {"A1050.0001": body["attributes"]["A1051.0001"]}
+            else {
+                "A1050.0001": (
+                    body["attributes"]["A1051.0001"]
+                    if self.prefilter_reply is None else self.prefilter_reply
+                )
+            }
         )
         client.publish(
             topic("BEvent", self.serial), json.dumps({"header": header, "attributes": attrs}), qos=1

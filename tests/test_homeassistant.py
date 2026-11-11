@@ -74,6 +74,13 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         assert last_seen_id is not None
         assert registry.async_get(last_seen_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
         assert hass.states.get(last_seen_id) is None
+        assert hass.states.get("select.test_fan_pre_filter_cleaning_cycle").state == "3 weeks"
+        await hass.services.async_call(
+            "select", "select_option",
+            {"entity_id": "select.test_fan_pre_filter_cleaning_cycle", "option": "4 weeks"},
+            blocking=True,
+        )
+        assert hass.states.get("select.test_fan_pre_filter_cleaning_cycle").state == "4 weeks"
         expected = {
             "sensor.test_fan_pm2_5": ("0", "μg/m³", "pm25"),
             "sensor.test_fan_ambient_light": ("617", "lx", "illuminance"),
@@ -153,12 +160,16 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         await enroll(service, pairing=pending)
         # A newly issued token cannot be completed by the already-online session.
         assert not pending.complete
+        await service.refresh(client.serial)
+        assert service.states[client.serial].prefilter_cycle is None
+        assert not pending.complete
         await asyncio.to_thread(client.close)
         await eventually(
             lambda: hass.states.get("sensor.test_fan_pm2_5").state == "unavailable"
         )
         await asyncio.to_thread(client.open)
         await eventually(lambda: pending.complete)
+        assert service.states[client.serial].prefilter_cycle == 168
         await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "unknown")
         options = await hass.config_entries.options.async_configure(options["flow_id"], {})
         assert options["type"] == "create_entry"
@@ -172,6 +183,7 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         for entity_id in expected:
             assert hass.states.get(entity_id).state == "unavailable"
         assert "TEST000001" in entry.runtime_data.devices
+        assert entry.runtime_data.states[client.serial].prefilter_cycle == 168
         final_service = entry.runtime_data
         assert await hass.config_entries.async_unload(entry.entry_id)
         assert not final_service.started

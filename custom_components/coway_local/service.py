@@ -19,12 +19,24 @@ from aiohttp import web
 
 from . import pki
 from .broker import CowayBroker
-from .const import MODEL, PAIRING_SECONDS, PROVISIONER_URL, REPLIES, SERVICE_CODE, SETTINGS
+from .const import (
+    DEFAULT_PREFILTER_CYCLE,
+    MODEL,
+    PAIRING_SECONDS,
+    PROVISIONER_URL,
+    REPLIES,
+    SERVICE_CODE,
+    SETTINGS,
+)
 from .telemetry import decode_report
 
 _LOGGER = logging.getLogger(__name__)
 SERIAL = re.compile(r"[A-Za-z0-9_-]{6,32}\Z")
 MAC = re.compile(r"[0-9A-F]{12}\Z")
+
+
+def valid_prefilter_cycle(value):
+    return type(value) is int and value in SETTINGS["prefilter_cycle"][2].values()
 
 
 @dataclass(frozen=True)
@@ -61,6 +73,7 @@ class Pairing:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     expires: float = field(default_factory=lambda: time.time() + PAIRING_SECONDS)
     complete: bool = False
+    connected: bool = False
     mac: str | None = None
     download: str | None = None
 
@@ -87,6 +100,7 @@ class LocalService:
         self.listeners: set[Callable[[str], None]] = set()
         self.pending: dict[tuple[str, str], tuple[str, asyncio.Future]] = {}
         self.command_locks: dict[str, asyncio.Lock] = {}
+        self.initialization_locks: dict[str, asyncio.Lock] = {}
         self.enrollment_lock = asyncio.Lock()
         self.broker: CowayBroker | None = None
         self.runners: list[web.AppRunner] = []
@@ -117,7 +131,18 @@ class LocalService:
         if data.get("version") != 1:
             raise ValueError("Unsupported credential store version")
         self.devices.update(data["devices"])
-        self.states.update({serial: DeviceState() for serial in self.devices})
+        self.states.update(
+            {
+                serial: DeviceState(
+                    prefilter_cycle=(
+                        value
+                        if valid_prefilter_cycle(value := device.get("prefilter_cycle"))
+                        else None
+                    )
+                )
+                for serial, device in self.devices.items()
+            }
+        )
         ca, https_tls, mqtt_tls = await asyncio.to_thread(
             pki.initialize, self.root, self.config.host
         )
@@ -184,7 +209,7 @@ class LocalService:
             self.changed(serial)
 
     async def save(self):
-        # Callers serialize enrollment/removal before modifying device identities.
+        # Callers hold enrollment_lock for identity and confirmed-setting changes.
         await asyncio.to_thread(
             pki.save_state,
             self.root,
@@ -261,6 +286,7 @@ class LocalService:
             if (
                 pairing is None
                 or pairing.complete
+                or pairing.connected
                 or time.time() > pairing.expires
                 or serial != pairing.serial
                 or not MAC.fullmatch(mac)
@@ -274,6 +300,7 @@ class LocalService:
         async with self.enrollment_lock:
             if (
                 pairing.complete
+                or pairing.connected
                 or time.time() > pairing.expires
                 or self.pairings.get(token) is not pairing
             ):
@@ -290,8 +317,11 @@ class LocalService:
                 "name": pairing.name,
                 "model": MODEL,
                 "fingerprint": pin,
+                # Durable intent: a restart before the first acknowledgement
+                # must retry initialization, not assume the default was applied.
+                "prefilter_default_pending": True,
             }
-            self.states.setdefault(serial, DeviceState())
+            self.states.setdefault(serial, DeviceState()).prefilter_cycle = None
             await self.save()
             pairing.mac = mac
             pairing.download = pairing.download or secrets.token_urlsafe(18)
@@ -343,12 +373,12 @@ class LocalService:
         if not was_online:
             # A new connection must report fresh measurements before we show them.
             state.telemetry.clear()
-        for pairing in tuple(self.pairings.values()):
-            # An already connected fan must not complete a new setup before its
-            # enrollment request has presented that attempt's one-time token.
-            if pairing.serial == serial and pairing.mac is not None:
-                pairing.complete = True
-                self.cancel_pairing(pairing)
+            for pairing in tuple(self.pairings.values()):
+                # Require a fresh connection after this attempt's enrollment.
+                if pairing.serial == serial and pairing.mac is not None:
+                    pairing.connected = True
+                    if pairing.download:
+                        self.downloads.pop(pairing.download, None)
         self.changed(serial)
         if not was_online:
             self.task(self.refresh(serial))
@@ -389,8 +419,19 @@ class LocalService:
             state.telemetry.update(decode_report(attributes))
         elif api == "A1050":
             value = attributes.get("A1050.0001")
-            if type(value) is int:
-                state.prefilter_cycle = value
+            if valid_prefilter_cycle(value):
+                async with self.enrollment_lock:
+                    device = self.devices.get(serial)
+                    if device is not None and device.get("prefilter_cycle") != value:
+                        previous = device.get("prefilter_cycle")
+                        device["prefilter_cycle"] = value
+                        try:
+                            await self.save()
+                        except OSError:
+                            device["prefilter_cycle"] = previous
+                            _LOGGER.exception("Could not save the confirmed pre-filter interval")
+                            return
+                    state.prefilter_cycle = value
         elif api == "A1000":
             version = attributes.get("mcuFrmwrVer")
             if isinstance(version, str):
@@ -436,12 +477,41 @@ class LocalService:
             raise ValueError("Fan replied without confirming the requested setting")
         return reply
 
+    async def initialize_prefilter(self, serial):
+        """Apply the enrollment default once, retaining only device-confirmed state."""
+        async with self.initialization_locks.setdefault(serial, asyncio.Lock()):
+            device = self.devices.get(serial)
+            if not device or not device.get("prefilter_default_pending"):
+                return
+            if any(
+                p.serial == serial and p.mac is not None and not p.connected
+                for p in self.pairings.values()
+            ):
+                return
+            await self.set(serial, "prefilter_cycle", DEFAULT_PREFILTER_CYCLE)
+            async with self.enrollment_lock:
+                # Removal or a newer enrollment may have replaced this record
+                # while the command was in flight. Do not complete that attempt.
+                if self.devices.get(serial) is not device:
+                    return
+                device.pop("prefilter_default_pending", None)
+                try:
+                    await self.save()
+                except OSError:
+                    device["prefilter_default_pending"] = True
+                    raise
+                for pairing in tuple(self.pairings.values()):
+                    if pairing.serial == serial and pairing.connected:
+                        pairing.complete = True
+                        self.cancel_pairing(pairing)
+
     async def refresh(self, serial):
         try:
+            await self.initialize_prefilter(serial)
             await self.command(serial)
-        except TimeoutError, ConnectionError:
+        except OSError, ValueError:
             if not self.stopping:
-                _LOGGER.debug("Status refresh could not reach a Coway device")
+                _LOGGER.debug("Coway initialization or status refresh was not confirmed")
 
     async def maintenance(self):
         while True:

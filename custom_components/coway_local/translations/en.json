@@ -34,7 +34,7 @@
       },
       "add_fan": {
         "title": "Add a fan",
-        "description": "Enter the serial number printed on the AP-1022K label. Keep the Coway app closed during setup.",
+        "description": "Enter the serial number printed on the AP-1022K label. Keep the Coway app closed during setup. Enrollment sets the pre-filter cleaning interval to 3 weeks; you can change it afterward.",
         "data": {
           "serial": "Device serial number",
           "name": "Device name"
@@ -42,7 +42,7 @@
       },
       "pairing": {
         "title": "Provision {name}",
-        "description": "[Open Bluetooth setup]({setup_url}) in a **new Chrome tab** on a nearby Mac or Android device. Enter Wi-Fi credentials there. This link expires in 15 minutes.\n\nAfter the fan reports connected, return here and select Submit. Home Assistant will verify the authenticated MQTT connection.",
+        "description": "[Open Bluetooth setup]({setup_url}) in a **new Chrome tab** on a nearby Mac or Android device. Enter Wi-Fi credentials there. This link expires in 15 minutes.\n\nAfter the fan reports connected, return here and select Submit. Home Assistant will confirm the connection and set the pre-filter cleaning interval to 3 weeks. You can change it afterward.",
         "data": {}
       },
       "server": {
@@ -62,7 +62,7 @@
       "invalid_server": "Enter a reachable IPv4 address, three different ports (1024\u201365535), and an HTTPS provisioning URL.",
       "cannot_start_pairing": "The local service is unavailable or there are too many active setup attempts.",
       "invalid_serial": "Enter the serial number from the fan\u2019s label (6\u201332 letters, digits, hyphens or underscores).",
-      "not_connected": "No authenticated connection yet. Finish Bluetooth setup, wait for the fan to connect, then submit again."
+      "not_connected": "Waiting for the fan to connect and confirm the 3-week pre-filter cleaning interval. Finish Bluetooth setup, wait a moment, then submit again."
     },
     "abort": {
       "pairing_expired": "Setup expired. Choose Add fan to create a new link."

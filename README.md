@@ -40,7 +40,9 @@ Reserve the HA host address in your router before provisioning. Changing the add
 3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
 4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
 5. Choose the `AP-1022K_...` device, then select a 2.4 GHz Wi-Fi network from the fan’s scan. Enter its Wi-Fi password and start setup.
-6. When the page says the fan reports connected, return to HA and press **Submit**. HA confirms the fan’s authenticated MQTT connection.
+6. When the page says the fan reports connected, return to HA and press **Submit**. HA confirms the connection and the **3-week pre-filter cleaning interval** applied during enrollment.
+
+Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
 
 The setup link expires after 15 minutes and is revoked when canceled or completed. If it expires or the fan exits setup mode, generate a new link and re-enter setup mode. Safari and iPhone browsers are not supported by this setup path.
 
@@ -102,7 +104,7 @@ Sensors show unknown until the first report after connection, and unavailable wh
 
 - "Last seen" changes on every MQTT message. It is disabled by default to avoid filling Activity and the recorder with routine timestamps. Enable it in the entity settings only when needed for troubleshooting. For installations created before v0.1.2, disable the existing Last seen entity manually; upgrading preserves your entity preferences. The Connection sensor remains enabled. Disabling Last seen stops new updates but does not delete historical entries.
 - Tested on one AP-1022K, MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`. Do not assume other Coway devices use this protocol.
-- The pre-filter cycle is known after its setting is acknowledged; it may initially show unknown after an HA restart.
+- A read-only query for the pre-filter cleaning interval has not been identified. New enrollments establish a confirmed 3-week default, and confirmed changes are saved across HA restarts. Fans enrolled before v0.2.1 keep their existing setting; select an interval once to establish its saved value without provisioning again. Until then, an older installation may show unknown.
 - PM10, other air-quality metrics, filter notification flags, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
 - Wi-Fi association failure: use a 2.4 GHz network compatible with the fan, re-enter setup mode, and check the password.
 - Certificate or broker failure: check the advertised LAN IP, the three ports, routing/VLAN isolation, and HA logs. Keep the short HTTPS download URLs intact.
@@ -122,7 +124,7 @@ node --test tests/web.test.mjs
 .venv/bin/python scripts/package.py
 ```
 
-Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
+Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Cleaning-interval tests cover the enrollment default, matching acknowledgements, interrupted initialization, later preferences surviving restarts, re-enrollment, and upgrades without overwriting an existing fan. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
 
 Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created the original eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
 

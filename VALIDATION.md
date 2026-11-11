@@ -1,6 +1,6 @@
-# Validation for 0.2.0
+# Validation for 0.2.1
 
-Checked with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. All 15 Python tests, 6 JavaScript tests, and Ruff checks pass locally and on Linux. Home Assistant's hassfest validator also passes ([v0.2.0 implementation run](https://github.com/scottjg/coway-local/actions/runs/42974003320)).
+All 20 Python tests, 6 JavaScript tests and Ruff checks pass locally with Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS. The Checks workflow runs the same tests on Linux plus Home Assistant's hassfest validator.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -53,4 +53,8 @@ HACS downloaded implementation commit `4bf7aec` (manifest version 0.2.0), then H
 
 The Connection sensor showed Connected and Last seen remained disabled. No control settings or filter counters were changed during this update. These checks confirm local MQTT-to-HA delivery, not independent calibration of the physical sensors or a side-by-side comparison with the original app.
 
-Coverage is limited to this AP-1022K and the firmware listed in the README. The pre-filter cycle initially showed unknown, as expected until that setting is acknowledged. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.
+## v0.2.1 cleaning-interval initialization
+
+New enrollment sends the observed `A1051.0001 = 168` command and waits for a matching `A1050` confirmation before completing. Confirmed intervals are stored with each device. Tests cover fresh enrollment, re-enrollment, unrelated acknowledgements, wrong-value replies, interrupted setup and retry after restart, simultaneous updates to two devices, and retaining a later user choice without replaying the default on reconnect. Existing enrollments without a saved interval remain unchanged until the user selects one.
+
+Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.

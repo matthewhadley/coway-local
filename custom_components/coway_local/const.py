@@ -6,6 +6,7 @@ SERVICE_CODE = "002AIR007"
 PROVISIONER_URL = "https://scottjg.github.io/coway-local/"
 DEFAULT_PORTS = {"http_port": 8080, "https_port": 9443, "mqtt_port": 9883}
 PAIRING_SECONDS = 900
+DEFAULT_PREFILTER_CYCLE = "3 weeks"
 CIPHERS = "AES128-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384"
 
 # Each entry is (request API, attribute suffix, user-visible value -> wire value).
