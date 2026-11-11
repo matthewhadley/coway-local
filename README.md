@@ -10,7 +10,7 @@ This is an experimental implementation of the observed **FFC0 / P001 / P002** pr
 
 - Fan entity: power, three manual speeds, smart and sleep modes.
 - Select entities: lighting levels 1–4, timer, smart sensitivity, pre-filter cleaning cycle.
-- Connection sensor, last-seen timestamp, and refresh-status button.
+- Connection sensor, refresh-status button, and an optional last-seen timestamp (disabled by default).
 - Independent credentials and exact MQTT topic permissions for each fan.
 - Persistent local CA, mutual TLS, 15-minute enrollment links, and redacted diagnostics.
 - Static Web Bluetooth page with no analytics, external JavaScript or browser-to-HA requests.
@@ -86,6 +86,7 @@ Unloading or restarting the integration closes all three listeners. Fans reconne
 
 ## Limits and troubleshooting
 
+- "Last seen" changes on every MQTT message. It is disabled by default to avoid filling Activity and the recorder with routine timestamps. Enable it in the entity settings only when needed for troubleshooting. For installations created before v0.1.2, disable the existing Last seen entity manually; upgrading preserves your entity preferences. The Connection sensor remains enabled. Disabling Last seen stops new updates but does not delete historical entries.
 - Tested on one AP-1022K, MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`. Do not assume other Coway devices use this protocol.
 - The pre-filter cycle is known after its setting is acknowledged; it may initially show unknown after an HA restart.
 - Air-quality readings, filter life, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.

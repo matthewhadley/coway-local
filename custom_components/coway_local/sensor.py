@@ -16,6 +16,9 @@ class LastSeen(CowayEntity, SensorEntity):
     _attr_name = "Last seen"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    # Every MQTT message changes this timestamp and creates an Activity entry.
+    # Keep it available for troubleshooting without enabling that noise by default.
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, service, serial):
         super().__init__(service, serial, "last_seen")

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from homeassistant import bootstrap, config_entries, loader
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import frame
 from homeassistant.setup import async_setup_component
 
@@ -65,8 +66,13 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
                     )
                 ]
             )
-            == 8
+            == 7
         )
+        registry = er.async_get(hass)
+        last_seen_id = registry.async_get_entity_id("sensor", DOMAIN, "TEST000001_last_seen")
+        assert last_seen_id is not None
+        assert registry.async_get(last_seen_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+        assert hass.states.get(last_seen_id) is None
         await hass.services.async_call(
             "fan", "set_percentage", {"entity_id": "fan.test_fan", "percentage": 100}, blocking=True
         )
