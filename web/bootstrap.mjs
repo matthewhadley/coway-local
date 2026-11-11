@@ -1,4 +1,14 @@
 // Enrollment data stays in memory. No HA access token or Wi-Fi password belongs here.
+import {canonicalMac, text} from './protocol.mjs';
+
+export function readIdentity(advertisedName, fields) {
+  const mac = canonicalMac(text.decode(fields[2]));
+  // FFA0 field 1 is the module SSID (COWAYxxxxxx), not the AP-1022K model.
+  if (!advertisedName?.startsWith('AP-1022K') || !/^[A-F0-9]{12}$/.test(mac))
+    throw new Error('Unsupported device. This page supports AP-1022K only.');
+  return {name: advertisedName, mac, moduleName: text.decode(fields[1])};
+}
+
 export function validateBundle(value, now = Date.now()) {
   if (!value || value.v !== 1 || value.model !== 'AP-1022K'
       || !/^[A-Za-z0-9_-]{6,32}$/.test(value.serial ?? '')

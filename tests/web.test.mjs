@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {decodeSetup, validateBundle, wifiConfig} from '../web/bootstrap.mjs';
+import {decodeSetup, readIdentity, validateBundle, wifiConfig} from '../web/bootstrap.mjs';
 import {p001, p002, utf8, hex, fragments, Reassembler, decodeProto} from '../web/protocol.mjs';
 
 const now = 1800000000000;
@@ -50,4 +50,15 @@ test('malformed BLE frames and protobuf fail closed', () => {
   assert.throws(() => decodeProto(new Uint8Array([0x12, 0xff])));
   const frames = fragments(utf8.encode('a'.repeat(100)));
   assert.throws(() => new Reassembler().feed(frames[1]));
+});
+test('the module SSID differs from the advertised product model', () => {
+  const identity = readIdentity('AP-1022K_334455', {
+    1: utf8.encode('COWAY334455'), 2: utf8.encode('001122334455'),
+  });
+  assert.equal(identity.name, 'AP-1022K_334455');
+  assert.equal(identity.moduleName, 'COWAY334455');
+  assert.equal(identity.mac, '001122334455');
+  assert.throws(() => readIdentity('AP-OTHER_334455', {
+    1: utf8.encode('COWAY334455'), 2: utf8.encode('001122334455'),
+  }));
 });

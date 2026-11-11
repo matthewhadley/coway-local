@@ -1,6 +1,6 @@
-import {bytes,text,utf8,uuid,hex,canonicalMac,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs';
+import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs';
 
-import {decodeSetup, wifiConfig} from './bootstrap.mjs';
+import {decodeSetup, readIdentity, wifiConfig} from './bootstrap.mjs';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -112,9 +112,7 @@ $('connect').addEventListener('click',async()=>{
     }
     await channels.get(INFO).read();
     const info=decodeProto(await channels.get(INFO).receive(12000));
-    const mac=canonicalMac(text.decode(info[2]));
-    if(!/^[A-F0-9]{12}$/.test(mac) || !text.decode(info[1]).startsWith('AP-1022K')) throw new Error('Unsupported device. This page supports AP-1022K only.');
-    identity={mac,name:text.decode(info[1])};phase='connected';
+    identity=readIdentity(device.name,info);phase='connected';
     $('device').textContent=`${identity.name} · Bluetooth connected`;step('bluetooth');
     log('Fan model and address read; notification channels ready.','identity');
     await scan();
@@ -194,3 +192,5 @@ async function initialize() {
 }
 initialize().catch(fail);
 window.addEventListener('pagehide',()=>{saved=null;$('password').value='';device?.gatt?.disconnect();});
+// Pasting a fresh setup link into this tab is a same-document navigation.
+window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#setup=')) location.reload();});
