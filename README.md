@@ -36,7 +36,7 @@ Reserve the HA host address in your router before provisioning. Changing the add
 ## Add a fan
 
 1. Open **Coway Local → Configure → Add or provision a fan**.
-2. Enter the serial number from the fan’s product label and a friendly name. BLE exposes a device name and MAC address, but not the serial number.
+2. Enter the serial number from the fan’s product label. Leave **Custom device name** blank for automatic naming, or enter a name such as “Bedroom purifier.” BLE exposes a device name and MAC address, but not the serial number.
 3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
 4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
 5. Choose your fan in Chrome's picker, then select a 2.4 GHz Wi-Fi network from the fan’s scan. The picker filters for Coway setup advertisement formats; your fan's name does not have to start with `AP-1022K`. The page checks its setup services and identity response before accepting Wi-Fi settings. Enter its Wi-Fi password and start setup.
@@ -45,6 +45,33 @@ Reserve the HA host address in your router before provisioning. Changing the add
 Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
 
 The setup link expires after 15 minutes and is revoked when canceled or completed. If it expires or the fan exits setup mode, generate a new link and re-enter setup mode. Safari and iPhone browsers are not supported by this setup path.
+
+### Device names
+
+Names follow this order: an explicitly chosen name, a known friendly product name,
+then the selected device's advertised Bluetooth name. Unknown products are not
+assigned a hardcoded AP-1022K label. If the advertisement has no name, setup uses
+the module name returned by the BLE identity response when available.
+
+The bundled lookup uses [Coway's published serial-code table](https://cowaymega.zendesk.com/hc/en-us/articles/4402478387603-Where-s-my-product-s-Serial-Code):
+characters 4–8 of an 18-character serial identify the product. The included entries
+cover IconS (`02FJ3`), 250S (`02F9R`), 300S (`02DXB`), 400S (`02EUZ` / `02DNO`) and
+AP-1512HHS (`02F5O`). Naming entries do not imply protocol compatibility; only
+AP-1022K has been tested. No catalog or cloud request is made at runtime.
+
+Names are saved locally. Re-enrollment with a blank custom-name field preserves an
+existing custom name. Names assigned through HA's device settings take precedence
+and are never overwritten. On upgrade, a known product still using the old generic
+“Coway” default receives its friendly product name without Bluetooth setup or new
+credentials. Older unknown products keep their existing name until re-enrollment
+supplies their Bluetooth label. Existing entity IDs remain unchanged.
+
+For new setup links the browser carries the Bluetooth label in a base64url path
+on the fan's existing HTTPS enrollment request. The same token, serial and MAC
+checks apply before the server accepts the name. Wi-Fi credentials and tokens
+are not included in that path; short certificate/key download URLs are unchanged.
+The hosted page retains compatibility with older integration versions, whose
+links continue using the original enrollment endpoint.
 
 The browser displays the destination server before transmitting anything. Its setup token is in the URL fragment, which is not sent in the HTTPS request, and the page removes that fragment immediately. The Wi-Fi password is entered only in the page, stays in memory, and is cleared after completion or disconnection. HA does not receive or store the Wi-Fi password.
 

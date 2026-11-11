@@ -34,10 +34,10 @@
       },
       "add_fan": {
         "title": "Add a fan",
-        "description": "Enter the serial number printed on the AP-1022K label. Keep the Coway app closed during setup. Enrollment sets the pre-filter cleaning interval to 3 weeks; you can change it afterward.",
+        "description": "Enter the serial number printed on the device label. Leave the name blank to use its product name when known, or its Bluetooth name otherwise. Existing custom names are preserved. Keep the Coway app closed during setup. Enrollment sets the pre-filter cleaning interval to 3 weeks; you can change it afterward.",
         "data": {
           "serial": "Device serial number",
-          "name": "Device name"
+          "name": "Custom device name (optional)"
         }
       },
       "pairing": {

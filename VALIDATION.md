@@ -1,6 +1,6 @@
-# Validation for 0.2.2
+# Validation for 0.2.3
 
-Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 20 Python tests and 10 JavaScript tests. The previous server implementation and Home Assistant's hassfest validator [passed on Linux](https://github.com/scottjg/coway-local/actions/runs/42976372380); v0.2.2 changes the browser setup flow and version metadata.
+Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 25 Python tests and 12 JavaScript tests.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -64,5 +64,21 @@ Installed implementation commit `7af9f36` through HACS and restarted HAOS. The i
 The chooser applies the IoCare app's manufacturer-layout checks for IDs `0x0639` and `0xFFFF`, then the page reads the expected services, characteristics and identity. In the saved Android scan these checks match the fan and exclude the other 67 advertisers with manufacturer data. The [APK analysis](BLE_DISCOVERY.md) records the layouts and the differences from the app's full catalog-based discovery. Neither the advertised name nor setup-bundle model label must equal AP-1022K. Before starting a different connection, old Wi-Fi scan results are cleared. Missing setup services produce an actionable error. The server's protocol mappings are unchanged; the updated hosted page works with existing v0.2.1 setup links without restarting HA. Tests simulate alternate device names and identity responses; no additional physical model has been tested.
 
 Chrome on macOS loaded the published page and opened the manufacturer-filtered chooser using a synthetic setup link. After refreshing cached modules, the unrelated-device list disappeared; no candidate was advertising during that check. The captured physical fan advertisement is covered by the filter test, but no new physical enrollment was performed. Versioned module URLs prevent reuse of the preceding unfiltered setup code. The test link was cleared afterward.
+
+## v0.2.3 automatic device names
+
+The local catalog matches the documented model-code position in an 18-character
+serial number. Tests cover verified product names, unknown-code Bluetooth names,
+Unicode labels, explicit custom names, re-enrollment, restart persistence, and
+migration from the old generic default without replacing credentials. The real HA
+flow accepts an omitted name, updates its device-registry default from the BLE
+label, and retains a user-assigned registry name across re-enrollment and reload.
+
+The browser opts into the named enrollment endpoint only when the server's setup
+bundle advertises it. Tests exercise Unicode/base64url transport, reject malformed
+labels, require the existing enrollment token/serial/MAC checks, and confirm the
+endpoint is unavailable over HTTP. Old-server links still produce the original
+certificate-service URL. The new named URL requires a physical-fan check; previous
+successful hardware enrollments used the original endpoint.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.

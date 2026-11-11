@@ -44,7 +44,9 @@ export function validateBundle(value, now = Date.now()) {
       || !/^[A-Za-z0-9_-]{6,32}$/.test(value.serial ?? '')
       || !/^[A-Za-z0-9_-]{32}$/.test(value.certToken ?? '')
       || typeof value.name !== 'string' || value.name.length > 80
-      || !Number.isSafeInteger(value.expiresAt)) throw new Error('Invalid setup link. Create a new one in Home Assistant.');
+      || !Number.isSafeInteger(value.expiresAt)
+      || ['bluetoothNameInUrl', 'useBluetoothName'].some(key => value[key] !== undefined && typeof value[key] !== 'boolean'))
+    throw new Error('Invalid setup link. Create a new one in Home Assistant.');
   if (value.expiresAt <= now) throw new Error('This setup link expired. Create a new one in Home Assistant.');
   const ca = new URL(value.caUrl), cert = new URL(value.certSvrUrl);
   if (ca.protocol !== 'http:' || cert.protocol !== 'https:'
@@ -57,6 +59,8 @@ export function validateBundle(value, now = Date.now()) {
     v: 1, model: value.model, serial: value.serial, name: value.name,
     certToken: value.certToken, expiresAt: value.expiresAt,
     caUrl: ca.href, certSvrUrl: cert.href,
+    ...(value.bluetoothNameInUrl !== undefined ? {bluetoothNameInUrl: value.bluetoothNameInUrl} : {}),
+    ...(value.useBluetoothName !== undefined ? {useBluetoothName: value.useBluetoothName} : {}),
   });
 }
 
@@ -85,9 +89,22 @@ export function wifiConfig(bundle, identity, network, password, now = Date.now()
   const length = new TextEncoder().encode(password).length;
   if (network.security && (length < 8 || length > 63))
     throw new Error('Enter an 8–63 byte Wi-Fi password.');
+  let certSvrUrl = bundle.certSvrUrl;
+  if (bundle.bluetoothNameInUrl) {
+    // The fan carries this label in its existing authenticated enrollment POST.
+    // No browser-to-HA request, extra token, or change to credential URLs is needed.
+    const name = identity.name?.trim();
+    if (!name || [...name].length > 80 || /[\u0000-\u001f\u007f-\u009f]/u.test(name))
+      throw new Error('The Bluetooth device must return a name of 1–80 characters without control characters.');
+    const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(name)))
+      .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+    const url = new URL(certSvrUrl);
+    url.pathname = '/n/' + encoded;
+    certSvrUrl = url.href;
+  }
   return {
     cmd: 2, type: 1, serial: bundle.serial, macAddr: identity.mac,
     ssid: network.ssid, bssid: network.bssid, pwd: password,
-    caUrl: bundle.caUrl, certSvrUrl: bundle.certSvrUrl, certToken: bundle.certToken,
+    caUrl: bundle.caUrl, certSvrUrl, certToken: bundle.certToken,
   };
 }

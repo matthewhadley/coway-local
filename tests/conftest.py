@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import queue
 import socket
@@ -37,12 +38,16 @@ async def eventually(predicate, timeout=5):
             await asyncio.sleep(0.02)
 
 
-async def enroll(service, serial="TEST000001", mac="001122334455", pairing=None):
+async def enroll(service, serial="TEST000001", mac="001122334455", pairing=None, bluetooth_name=None):
     pairing = pairing or service.begin_pairing(serial, "Test fan")
     context = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
+    url = service.setup_bundle(pairing)["certSvrUrl"]
+    if bluetooth_name is not None:
+        encoded = base64.urlsafe_b64encode(bluetooth_name.encode()).decode().rstrip("=")
+        url = url.replace("/iot/v1/cert/r0", "/n/" + encoded)
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=context)) as client:
         async with client.post(
-            service.setup_bundle(pairing)["certSvrUrl"],
+            url,
             json={
                 "serial": serial,
                 "macAddr": mac,

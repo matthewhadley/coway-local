@@ -125,3 +125,31 @@ test('matching advertised names do not bypass malformed identity responses', () 
     {1: 123, 2: utf8.encode('001122334455')},
   ]) assert.throws(() => readIdentity('AP-1022K_334455', fields));
 });
+test('new servers receive the selected Bluetooth name in the fan enrollment URL', () => {
+  const input = {...bundle, bluetoothNameInUrl: true, useBluetoothName: true};
+  const decoded = decodeSetup('#setup=' + Buffer.from(JSON.stringify(input)).toString('base64url'), now);
+  assert.deepEqual(decoded, input);
+  const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
+  for (const name of ['AP-OTHER_334455', 'Purifier · 空气', 'name / ? # &']) {
+    const identity = readIdentity(name, {2: utf8.encode('001122334455')});
+    const config = wifiConfig(decoded, identity, network, 'testwifi', now);
+    const url = new URL(config.certSvrUrl);
+    assert.equal(url.origin, new URL(bundle.certSvrUrl).origin);
+    assert.ok(url.pathname.startsWith('/n/'));
+    assert.equal(url.search + url.hash, '');
+    assert.equal(Buffer.from(url.pathname.slice(3), 'base64url').toString(), name);
+    assert.equal(config.certToken, bundle.certToken);
+    assert.equal(config.caUrl, bundle.caUrl);
+    assert.ok(!config.certSvrUrl.includes(config.certToken));
+    // Old HA installations keep the original URL even with the new hosted page.
+    assert.equal(wifiConfig(bundle, identity, network, 'testwifi', now).certSvrUrl, bundle.certSvrUrl);
+  }
+});
+test('malformed naming capabilities and unsafe or oversized Bluetooth labels stop provisioning', () => {
+  for (const value of ['true', 1, null])
+    assert.throws(() => validateBundle({...bundle, bluetoothNameInUrl: value}, now));
+  const input = {...bundle, bluetoothNameInUrl: true};
+  const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
+  for (const name of ['', ' ', 'x'.repeat(81), 'Bad\nname', 'Bad\u007fname'])
+    assert.throws(() => wifiConfig(input, {mac: '001122334455', name}, network, 'testwifi', now));
+});

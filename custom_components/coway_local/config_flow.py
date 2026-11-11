@@ -81,7 +81,7 @@ class OptionsFlow(config_entries.OptionsFlow):
                 errors["serial"] = "invalid_serial"
             else:
                 try:
-                    self.pairing = service.begin_pairing(serial, user_input.get("name", "Coway"))
+                    self.pairing = service.begin_pairing(serial, user_input.get("name", ""))
                     self.pairing_service = service
                 except ValueError, ConnectionError:
                     errors["base"] = "cannot_start_pairing"
@@ -92,7 +92,7 @@ class OptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Required("serial"): str,
-                    vol.Optional("name", default="Coway"): str,
+                    vol.Optional("name", default=""): str,
                 }
             ),
             errors=errors,

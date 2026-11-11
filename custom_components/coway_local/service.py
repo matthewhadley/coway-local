@@ -28,6 +28,7 @@ from .const import (
     SERVICE_CODE,
     SETTINGS,
 )
+from .naming import choose_name, clean_name, decode_bluetooth_name, migrate_name
 from .telemetry import decode_report
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +71,8 @@ class ServerConfig:
 class Pairing:
     serial: str
     name: str
+    custom_name: str = ""
+    name_source: str = "legacy"
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     expires: float = field(default_factory=lambda: time.time() + PAIRING_SECONDS)
     complete: bool = False
@@ -131,6 +134,11 @@ class LocalService:
         if data.get("version") != 1:
             raise ValueError("Unsupported credential store version")
         self.devices.update(data["devices"])
+        names_changed = False
+        for serial, record in self.devices.items():
+            names_changed = migrate_name(serial, record) or names_changed
+        if names_changed:
+            await self.save()
         self.states.update(
             {
                 serial: DeviceState(
@@ -154,6 +162,7 @@ class LocalService:
                 app.router.add_get("/ca.pem", self.ca_download)
                 if secure:
                     app.router.add_post("/iot/v1/cert/r0", self.enroll)
+                    app.router.add_post("/n/{bluetooth_name}", self.enroll)
                     app.router.add_get("/d/{cap}/{kind}", self.credential_download)
                 runner = web.AppRunner(app, access_log=None, shutdown_timeout=5)
                 self.runners.append(runner)
@@ -216,11 +225,17 @@ class LocalService:
             {"version": 1, "devices": dict(self.devices)},
         )
 
-    def begin_pairing(self, serial: str, name: str) -> Pairing:
+    def begin_pairing(self, serial: str, name: str = "") -> Pairing:
         if not self.started:
             raise ConnectionError("Local service is not running")
         if not SERIAL.fullmatch(serial):
             raise ValueError("Enter the serial number printed on the device label")
+        name = clean_name(name)
+        old = self.devices.get(serial, {})
+        custom_name = name or old.get("custom_name", "")
+        display_name, name_source = choose_name(
+            serial, custom_name, old.get("bluetooth_name", ""), old.get("name", "")
+        )
         self.expire_pairings()
         # A new enrollment attempt invalidates any old attempt for the same serial.
         for pairing in tuple(self.pairings.values()):
@@ -228,7 +243,9 @@ class LocalService:
                 self.cancel_pairing(pairing)
         if len(self.pairings) >= 8:
             raise ValueError("Finish or cancel an existing setup first")
-        pairing = Pairing(serial=serial, name=name.strip()[:80] or "Coway")
+        pairing = Pairing(
+            serial=serial, name=display_name, custom_name=custom_name, name_source=name_source
+        )
         self.pairings[pairing.token] = pairing
         return pairing
 
@@ -253,6 +270,8 @@ class LocalService:
             "certSvrUrl": f"https://{cfg.host}:{cfg.https_port}/iot/v1/cert/r0",
             "certToken": pairing.token,
             "expiresAt": int(pairing.expires * 1000),
+            "bluetoothNameInUrl": True,
+            "useBluetoothName": pairing.name_source in ("bluetooth", "legacy"),
         }
 
     def setup_url(self, pairing):
@@ -310,11 +329,23 @@ class LocalService:
                 return self.response({"error": "Device identity mismatch"}, 403)
             if any(d["mac"] == mac and key != serial for key, d in self.devices.items()):
                 return self.response({"error": "Device identity already enrolled"}, 409)
+            bluetooth_name = (old or {}).get("bluetooth_name", "")
+            if encoded_name := request.match_info.get("bluetooth_name"):
+                try:
+                    bluetooth_name = decode_bluetooth_name(encoded_name)
+                except ValueError:
+                    return self.response({"error": "Invalid Bluetooth name"}, 400)
+            name, name_source = choose_name(
+                serial, pairing.custom_name, bluetooth_name, pairing.name
+            )
             pin, cert, key = await asyncio.to_thread(pki.issue_device, self.root, serial, mac)
             self.devices[serial] = {
                 "serial": serial,
                 "mac": mac,
-                "name": pairing.name,
+                "name": name,
+                "name_source": name_source,
+                "custom_name": pairing.custom_name,
+                "bluetooth_name": bluetooth_name,
                 "model": MODEL,
                 "fingerprint": pin,
                 # Durable intent: a restart before the first acknowledgement
@@ -324,6 +355,8 @@ class LocalService:
             self.states.setdefault(serial, DeviceState()).prefilter_cycle = None
             await self.save()
             pairing.mac = mac
+            pairing.name = name
+            pairing.name_source = name_source
             pairing.download = pairing.download or secrets.token_urlsafe(18)
             self.downloads[pairing.download] = (pairing, cert, key)
             self.changed(serial)

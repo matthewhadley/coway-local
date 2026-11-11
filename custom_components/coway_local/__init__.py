@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN
 from .service import LocalService, ServerConfig
@@ -33,6 +34,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: CowayConfigEntry) -> boo
             "port conflicts and certificate storage."
         ) from error
     entry.runtime_data = service
+
+    def update_device_name(serial):
+        record = service.devices.get(serial)
+        registry = dr.async_get(hass)
+        device = registry.async_get_device_by_identifier((DOMAIN, serial), entry.entry_id)
+        if record and device and device.name != record["name"]:
+            # HA's independent name_by_user override is deliberately untouched.
+            registry.async_update_device(device.id, name=record["name"])
+
+    entry.async_on_unload(service.subscribe(update_device_name))
 
     async def stop(event):
         await service.stop()

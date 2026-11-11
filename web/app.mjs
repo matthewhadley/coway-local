@@ -1,6 +1,6 @@
 import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs';
 
-import {decodeSetup, readIdentity, requestFan, wifiConfig} from './bootstrap.mjs?v=0.2.2';
+import {decodeSetup, readIdentity, requestFan, wifiConfig} from './bootstrap.mjs?v=0.2.3';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -90,6 +90,7 @@ async function scan() {
 
 $('connect').addEventListener('click',async()=>{
   busy=true;phase='connecting';identity=null;networks=[];
+  if(saved?.useBluetoothName) $('target').textContent='Select your fan · '+saved.serial;
   $('network').replaceChildren();controls();
   for(const element of document.querySelectorAll('[data-step]')) element.classList.remove('done');
   try {
@@ -120,6 +121,7 @@ $('connect').addEventListener('click',async()=>{
     await channels.get(INFO).read();
     const info=decodeProto(await channels.get(INFO).receive(12000));
     identity=readIdentity(device.name,info);phase='connected';
+    if(saved.useBluetoothName) $('target').textContent=identity.name+' · '+saved.serial;
     $('device').textContent=`${identity.name} · Bluetooth connected`;step('bluetooth');
     log('Device identity read; notification channels ready.','identity');
     await scan();
@@ -193,7 +195,7 @@ async function initialize() {
   saved=decodeSetup(setupFragment);
   setupFragment='';
   $('server').textContent=new URL(saved.certSvrUrl).host;
-  $('target').textContent=saved.name+' · '+saved.serial;
+  $('target').textContent=(saved.useBluetoothName?'Select your fan':saved.name)+' · '+saved.serial;
   $('expiry').textContent='Setup link expires at '+new Date(saved.expiresAt).toLocaleTimeString()+'.';
   status('Ready. Put the fan in setup mode, then connect.');controls();
 }

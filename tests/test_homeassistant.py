@@ -8,6 +8,7 @@ from pathlib import Path
 from homeassistant import bootstrap, config_entries, loader
 from homeassistant.components.logbook.helpers import is_sensor_continuous
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import frame
 from homeassistant.setup import async_setup_component
@@ -149,6 +150,26 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         assert options["errors"] == {"base": "not_connected"}
         hass.config_entries.options.async_abort(options["flow_id"])
         assert not service.pairings
+        # Leaving the optional name blank uses the actual Bluetooth fallback.
+        naming_flow = await hass.config_entries.options.async_init(entry.entry_id)
+        naming_flow = await hass.config_entries.options.async_configure(
+            naming_flow["flow_id"], {"next_step_id": "add_fan"}
+        )
+        naming_flow = await hass.config_entries.options.async_configure(
+            naming_flow["flow_id"], {"serial": "OTHER000003"}
+        )
+        naming_pair = next(iter(service.pairings.values()))
+        await enroll(service, "OTHER000003", "001122334477", naming_pair, "AP-OTHER_334477")
+        await hass.async_block_till_done()
+        devices = dr.async_get(hass)
+        named_device = devices.async_get_device_by_identifier((DOMAIN, "OTHER000003"), entry.entry_id)
+        assert named_device.name == "AP-OTHER_334477"
+        devices.async_update_device(named_device.id, name_by_user="Kitchen purifier")
+        await enroll(service, "OTHER000003", "001122334477", naming_pair, "New Bluetooth name")
+        await hass.async_block_till_done()
+        assert devices.async_get(named_device.id).name == "New Bluetooth name"
+        assert devices.async_get(named_device.id).name_by_user == "Kitchen purifier"
+        hass.config_entries.options.async_abort(naming_flow["flow_id"])
         options = await hass.config_entries.options.async_init(entry.entry_id)
         options = await hass.config_entries.options.async_configure(
             options["flow_id"], {"next_step_id": "add_fan"}
@@ -184,6 +205,8 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
             assert hass.states.get(entity_id).state == "unavailable"
         assert "TEST000001" in entry.runtime_data.devices
         assert entry.runtime_data.states[client.serial].prefilter_cycle == 168
+        assert devices.async_get(named_device.id).name_by_user == "Kitchen purifier"
+        assert entry.runtime_data.devices["OTHER000003"]["name"] == "New Bluetooth name"
         final_service = entry.runtime_data
         assert await hass.config_entries.async_unload(entry.entry_id)
         assert not final_service.started
