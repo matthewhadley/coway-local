@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+.DS_Store
+dist/
+.coverage
+htmlcov/
+*.key
+*.pem
+.storage/
+runtime/

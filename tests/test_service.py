@@ -1,0 +1,178 @@
+import asyncio
+import json
+import ssl
+import time
+from dataclasses import replace
+
+import aiohttp
+import pytest
+
+from custom_components.coway_local.broker import topic
+from custom_components.coway_local.const import SETTINGS
+from custom_components.coway_local.service import LocalService, ServerConfig
+
+from .conftest import Fan, enroll, eventually
+
+
+async def test_enrollment_is_temporary_and_https_only(service):
+    pairing, payload = await enroll(service)
+    tls = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=tls)) as client:
+        async with client.get(service.setup_bundle(pairing)["caUrl"]) as response:
+            assert response.status == 200
+        url = service.setup_bundle(pairing)["certSvrUrl"]
+        for body in (
+            {},
+            [],
+            {"certToken": "wrong"},
+            {"certToken": pairing.token, "serial": "OTHER00001", "macAddr": "001122334455"},
+            {"certToken": pairing.token, "serial": pairing.serial, "macAddr": "001122334466"},
+        ):
+            async with client.post(url, json=body) as response:
+                assert response.status == 403
+        http_base = f"http://127.0.0.1:{service.config.http_port}"
+        async with client.post(http_base + "/iot/v1/cert/r0", json={}) as response:
+            assert response.status == 404
+        async with client.get(
+            payload["privateUrl"].replace(
+                f"https://127.0.0.1:{service.config.https_port}", http_base
+            )
+        ) as response:
+            assert response.status == 404
+        pairing.expires = time.time() - 1
+        async with client.get(payload["privateUrl"]) as response:
+            assert response.status == 404
+        async with client.post(
+            url,
+            json={
+                "certToken": pairing.token,
+                "serial": pairing.serial,
+                "macAddr": pairing.mac,
+            },
+        ) as response:
+            assert response.status == 403
+
+
+async def test_fan_commands_reserved_events_and_acknowledgements(service, fan):
+    assert service.states[fan.serial].online
+    assert not service.pairings and not service.downloads
+    for setting, (_, _, values) in SETTINGS.items():
+        for value in values:
+            await service.set(fan.serial, setting, value)
+    assert service.states[fan.serial].prefilter_cycle == 224
+    assert service.states[fan.serial].settings["000A"] == 3
+    request = fan.messages.get_nowait()
+    assert len(request["header"]["requestId"]) == 16
+    for denied in ("#", "$aws/#", topic("MControl", "OTHER00001"), topic("BEvent", fan.serial)):
+        await asyncio.to_thread(fan.subscribe, denied, False)
+    fan.respond = False
+    with pytest.raises(TimeoutError):
+        await service.command(fan.serial, timeout=0.15)
+    assert not service.pending
+    await asyncio.to_thread(fan.close)
+    await eventually(lambda: not service.states[fan.serial].online)
+    with pytest.raises(ConnectionError):
+        await service.command(fan.serial)
+
+
+async def test_identity_cannot_impersonate_or_evict_another_fan(service, fan):
+    await enroll(service, "TEST000002", "001122334466")
+    impostor = await asyncio.to_thread(
+        Fan, service.root, service.config.mqtt_port, fan.serial, "TEST000002"
+    )
+    try:
+        await asyncio.to_thread(impostor.open, False)
+        await asyncio.sleep(0.15)
+        assert impostor.connections.empty()
+        assert service.states[fan.serial].online
+        await service.set(fan.serial, "speed", "2")
+    finally:
+        await asyncio.to_thread(impostor.close)
+    other = await asyncio.to_thread(Fan, service.root, service.config.mqtt_port, "TEST000002")
+    try:
+        await asyncio.to_thread(other.open)
+        await eventually(lambda: bool(service.states[other.serial].settings))
+        await service.set(other.serial, "speed", "3")
+        assert service.states[fan.serial].settings["0003"] == 2
+        assert service.states[other.serial].settings["0003"] == 3
+    finally:
+        await asyncio.to_thread(other.close)
+
+
+async def test_missing_certificate_rejected(service):
+    context = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
+    context.maximum_version = ssl.TLSVersion.TLSv1_2
+    with pytest.raises((ConnectionError, ssl.SSLError)):
+        await asyncio.open_connection("127.0.0.1", service.config.mqtt_port, ssl=context)
+
+
+async def test_wrong_direction_publications_are_dropped(service, fan):
+    original = service.states[fan.serial].settings["0003"]
+    forged = json.dumps(
+        {
+            "header": {"prodId": fan.serial, "API_NO": "A1010"},
+            "attributes": {"A1010.0003": 3},
+        }
+    )
+    for denied in (topic("MControl", fan.serial), topic("BEvent", "TEST000002"), "$SYS/test"):
+        await asyncio.to_thread(fan.publish, denied, forged)
+    await asyncio.sleep(0.05)
+    assert service.states[fan.serial].settings["0003"] == original
+    await service.set(fan.serial, "speed", "2")
+
+
+async def test_persistence_reload_and_removal(service, fan):
+    ca = (service.root / "ca.pem").read_bytes()
+    cert = (service.root / "devices" / f"{fan.serial}.pem").read_bytes()
+    await asyncio.to_thread(fan.close)
+    await service.stop()
+    await service.start()
+    assert (service.root / "ca.pem").read_bytes() == ca
+    assert (service.root / "devices" / f"{fan.serial}.pem").read_bytes() == cert
+    await asyncio.to_thread(fan.open)
+    await eventually(lambda: service.states[fan.serial].online)
+    await service.set(fan.serial, "speed", "3")
+    diagnostics = json.dumps(service.diagnostics())
+    assert fan.serial not in diagnostics and "127.0.0.1" not in diagnostics
+    await service.remove(fan.serial)
+    assert not service.devices
+    assert not (service.root / "devices" / f"{fan.serial}.key").exists()
+    await asyncio.to_thread(fan.close)
+    while not fan.connections.empty():
+        fan.connections.get_nowait()
+    await asyncio.to_thread(fan.open, False)
+    await asyncio.sleep(0.05)
+    assert fan.connections.empty()
+    with pytest.raises(ConnectionError):
+        await service.command(fan.serial)
+
+
+async def test_partial_start_failure_releases_listeners(service, tmp_path):
+    failed = LocalService(
+        tmp_path / "failure",
+        replace(
+            service.config, http_port=service.config.https_port, https_port=service.config.http_port
+        ),
+    )
+    with pytest.raises(OSError):
+        await failed.start()
+    assert not failed.runners and not failed.started
+    await service.stop()
+    await failed.start()
+    await failed.stop()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"host": "0.0.0.0"},
+        {"host": "::1"},
+        {"mqtt_port": 80},
+        {"mqtt_port": 8080},
+        {"provisioner_url": "http://example.com"},
+        {"provisioner_url": "https://example.com/#secret"},
+    ],
+)
+def test_invalid_server_configuration(kwargs):
+    with pytest.raises(ValueError):
+        ServerConfig(**({"host": "192.0.2.1"} | kwargs)).validate()

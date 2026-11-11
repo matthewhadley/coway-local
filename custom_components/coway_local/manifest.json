@@ -1,0 +1,12 @@
+{
+  "domain": "coway_local",
+  "name": "Coway Local",
+  "codeowners": ["@scottjg"],
+  "config_flow": true,
+  "documentation": "https://github.com/scottjg/coway-local",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/scottjg/coway-local/issues",
+  "requirements": ["amqtt==0.12.1"],
+  "version": "0.1.0"
+}

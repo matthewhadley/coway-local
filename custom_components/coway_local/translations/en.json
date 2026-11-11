@@ -1,0 +1,71 @@
+{
+  "title": "Coway Local",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Start Coway Local",
+        "description": "This integration hosts the fan\u2019s local services. Use a reserved LAN IPv4 address reachable by the fan. After setup, choose Configure \u2192 Add fan. Tested with AP-1022K only.",
+        "data": {
+          "host": "Home Assistant LAN IPv4 address",
+          "http_port": "CA download port (HTTP)",
+          "https_port": "Certificate service port (HTTPS)",
+          "mqtt_port": "Fan MQTT port (TLS)",
+          "bind_host": "Listen address",
+          "provisioner_url": "HTTPS provisioning page URL"
+        }
+      }
+    },
+    "error": {
+      "invalid_server": "Enter a reachable IPv4 address, three different ports (1024\u201365535), and an HTTPS provisioning URL."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one Coway Local server is needed. Use Configure to add another fan.",
+      "already_configured": "Coway Local is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Coway Local",
+        "menu_options": {
+          "add_fan": "Add or provision a fan",
+          "server": "Server settings"
+        }
+      },
+      "add_fan": {
+        "title": "Add a fan",
+        "description": "Enter the serial number printed on the AP-1022K label. Keep the Coway app closed during setup.",
+        "data": {
+          "serial": "Device serial number",
+          "name": "Device name"
+        }
+      },
+      "pairing": {
+        "title": "Provision {name}",
+        "description": "[Open Bluetooth setup]({setup_url}) in a **new Chrome tab** on a nearby Mac or Android device. Enter Wi-Fi credentials there. This link expires in 15 minutes.\n\nAfter the fan reports connected, return here and select Submit. Home Assistant will verify the authenticated MQTT connection.",
+        "data": {}
+      },
+      "server": {
+        "title": "Server settings",
+        "description": "Changing the advertised address or ports requires provisioning existing fans again. Reserve the host\u2019s LAN address before setup. Changing settings restarts this integration.",
+        "data": {
+          "host": "Home Assistant LAN IPv4 address",
+          "http_port": "CA download port (HTTP)",
+          "https_port": "Certificate service port (HTTPS)",
+          "mqtt_port": "Fan MQTT port (TLS)",
+          "bind_host": "Listen address",
+          "provisioner_url": "HTTPS provisioning page URL"
+        }
+      }
+    },
+    "error": {
+      "invalid_server": "Enter a reachable IPv4 address, three different ports (1024\u201365535), and an HTTPS provisioning URL.",
+      "cannot_start_pairing": "The local service is unavailable or there are too many active setup attempts.",
+      "invalid_serial": "Enter the serial number from the fan\u2019s label (6\u201332 letters, digits, hyphens or underscores).",
+      "not_connected": "No authenticated connection yet. Finish Bluetooth setup, wait for the fan to connect, then submit again."
+    },
+    "abort": {
+      "pairing_expired": "Setup expired. Choose Add fan to create a new link."
+    }
+  }
+}
