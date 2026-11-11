@@ -109,7 +109,7 @@ node --test tests/web.test.mjs
 
 Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan.
 
-Hardware checks separately confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. The original Web Bluetooth protocol and alternate HTTPS/MQTT ports were also tested on the device. See `VALIDATION.md` for the remaining installation test.
+Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created all eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
 
 aMQTT is pinned to **0.12.1** because the adapter overrides private broker hooks. Re-run wire and HA compatibility tests before changing that pin.
 
