@@ -62,8 +62,7 @@
       "fan_ready": "**Fan ready**\n\nYour fan is connected and ready to control in Home Assistant. You can close this dialog."
     },
     "progress": {
-      "verify_connection": "Your Wi-Fi settings have been sent. Home Assistant is waiting for the fan to connect and confirm its initial settings.\n\nThis can take another **1–2 minutes**. Keep the fan powered on and leave this dialog open. Setup will finish automatically."
-    },
-    "loading": "Loading Coway Local setup…"
+      "verify_connection": "Your Wi-Fi settings have been sent. Home Assistant is waiting for the fan to connect and confirm its initial settings.\n\nThis can take another **2 minutes**. Keep the fan powered on and leave this dialog open. Setup will finish automatically."
+    }
   }
 }

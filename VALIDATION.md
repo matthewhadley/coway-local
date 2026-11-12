@@ -1,4 +1,4 @@
-# Validation for 0.4.1
+# Validation for 0.4.2
 
 Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 24 Python tests and 13 JavaScript tests.
 
@@ -180,9 +180,15 @@ button; the fan and credentials have already been saved by the local service.
 The HA regression test covers this result for both connection timing orders and
 checks that the running service and server options are unchanged.
 
-The verification message now explains that provisioning can take another 1–2
-minutes, asks the user to leave the fan powered on and dialog open, and states
-that completion is automatic. A loading description also covers transitional
-spinners. After a fresh page load, the previous progress text was visible on the
+The verification message explains that provisioning can take another 2 minutes,
+asks the user to leave the fan powered on and dialog open, and states that
+completion is automatic. After a fresh page load, the previous progress text was visible on the
 installed HA 0.4.0 flow; stale frontend translations are a possible cause of the
 reported blank screen, not a confirmed cause.
+
+## v0.4.2: revised setup instructions
+
+Preserved the user’s Bluetooth setup instructions and web-source formatting.
+Synchronized the English translation with the revised 2-minute waiting message.
+Removed the unsupported `options.loading` field flagged by hassfest in the
+previous commit; the normal verification progress message remains.
