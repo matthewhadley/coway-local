@@ -129,7 +129,9 @@ class OptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_finish(self, user_input=None):
         if self.pairing.complete:
-            return self.async_create_entry(title="", data=dict(self.config_entry.options))
+            # Enrollment is already persisted by the service. End the flow without
+            # saving options, which would show HA's fixed "Options successfully saved".
+            return self.async_abort(reason="fan_ready")
         reason = "pairing_expired" if time.time() >= self.pairing.expires else "pairing_interrupted"
         return self.async_abort(reason=reason)
 

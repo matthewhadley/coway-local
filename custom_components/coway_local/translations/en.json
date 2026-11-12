@@ -58,10 +58,12 @@
     "abort": {
       "pairing_expired": "Setup expired. Choose Add fan to create a new link.",
       "cannot_start_pairing": "Could not start setup. Check that the local service is running, Home Assistant has a frontend URL, and there are fewer than eight active setup attempts.",
-      "pairing_interrupted": "Setup was canceled or the local service stopped. Choose Add fan to start again."
+      "pairing_interrupted": "Setup was canceled or the local service stopped. Choose Add fan to start again.",
+      "fan_ready": "**Fan ready**\n\nYour fan is connected and ready to control in Home Assistant. You can close this dialog."
     },
     "progress": {
-      "verify_connection": "Waiting for your fan to connect securely and confirm its 3-week pre-filter cleaning interval. Setup will finish automatically."
-    }
+      "verify_connection": "Your Wi-Fi settings have been sent. Home Assistant is waiting for the fan to connect and confirm its initial settings.\n\nThis can take another **1–2 minutes**. Keep the fan powered on and leave this dialog open. Setup will finish automatically."
+    },
+    "loading": "Loading Coway Local setup…"
   }
 }

@@ -1,5 +1,5 @@
 // Enrollment data stays in memory. No HA access token or Wi-Fi password belongs here.
-import {canonicalMac, localSerial, text, uuid} from './protocol.mjs?v=0.4.0';
+import {canonicalMac, localSerial, text, uuid} from './protocol.mjs?v=0.4.1';
 
 export function requestFan(bluetooth) {
   // Keep this synchronous so Chrome's chooser retains the click's user activation.

@@ -1,4 +1,4 @@
-# Validation for 0.4.0
+# Validation for 0.4.1
 
 Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 24 Python tests and 13 JavaScript tests.
 
@@ -170,3 +170,19 @@ Local verification on 2026-11-11:
   URLs are rejected before provisioning.
 - This was local validation only. The hosted page and live HA installation were
   not updated, and no physical fan was provisioned during this change.
+
+## v0.4.1: enrollment completion and waiting messages
+
+HA's options-flow success description is fixed to "Options successfully saved."
+Enrollment now ends with the translated `fan_ready` result instead of saving
+unchanged options. HA renders this as a neutral completion dialog with a Close
+button; the fan and credentials have already been saved by the local service.
+The HA regression test covers this result for both connection timing orders and
+checks that the running service and server options are unchanged.
+
+The verification message now explains that provisioning can take another 1–2
+minutes, asks the user to leave the fan powered on and dialog open, and states
+that completion is automatic. A loading description also covers transitional
+spinners. After a fresh page load, the previous progress text was visible on the
+installed HA 0.4.0 flow; stale frontend translations are a possible cause of the
+reported blank screen, not a confirmed cause.

@@ -1,5 +1,5 @@
-import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs?v=0.4.0';
-import {decodeSetup,readIdentity,requestFan,wifiConfig} from './bootstrap.mjs?v=0.4.0';
+import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs?v=0.4.1';
+import {decodeSetup,readIdentity,requestFan,wifiConfig} from './bootstrap.mjs?v=0.4.1';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;

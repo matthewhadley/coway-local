@@ -255,7 +255,9 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         await eventually(lambda: hass.states.get("sensor.test_fan_pm2_5").state == "unknown")
         # This is HA's automatic frontend refresh after its progress event, not a submit.
         options = await hass.config_entries.options.async_configure(options["flow_id"])
-        assert options["type"] == "create_entry"
+        assert options["type"] == "abort" and options["reason"] == "fan_ready"
+        assert entry.runtime_data is service
+        assert not entry.options
         await hass.async_block_till_done()
 
         # The fan can also finish before the browser returns; skip the spinner then.
@@ -270,7 +272,7 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         await eventually(lambda: pending.complete)
         assert (await browser.get(return_path(fast))).status == 200
         fast = await hass.config_entries.options.async_configure(fast["flow_id"])
-        assert fast["type"] == "create_entry"
+        assert fast["type"] == "abort" and fast["reason"] == "fan_ready"
         await hass.async_block_till_done()
         await asyncio.to_thread(client.close)
         await hass.config_entries.async_reload(entry.entry_id)
