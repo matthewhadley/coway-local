@@ -24,11 +24,17 @@ This is experimental. It implements the protocol observed on one AP-1022K, and n
 
 ## Install
 
-**With HACS:** add `https://github.com/scottjg/coway-local` as a custom repository with category **Integration**, install **Coway Local**, and restart Home Assistant.
+**With HACS:** open the repository in HACS with the button below, install **Coway Local**, and restart Home Assistant.
+
+[![Open the Coway Local repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=scottjg&repository=coway-local&category=integration)
+
+If the button does not reach your Home Assistant, add `https://github.com/scottjg/coway-local` in HACS as a custom repository with category **Integration**.
 
 **Manually:** copy `custom_components/coway_local` into your Home Assistant configuration directory and restart. The release ZIP has the same layout and can be extracted into `/config`.
 
-Then add **Coway Local** under **Settings → Devices & services → Add integration**.
+After the restart, add the integration with the button below, or find **Coway Local** under **Settings → Devices & services → Add integration**.
+
+[![Add the Coway Local integration to Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=coway_local)
 
 The form shows the LAN address that Home Assistant detected for itself. In most installations you only need to confirm it and submit.
 
