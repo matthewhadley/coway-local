@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Coway · Local setup</title>
 <link rel="icon" href="./icon.png">
-<link rel="stylesheet" href="./style.css?v=0.3.0">
+<link rel="stylesheet" href="./style.css?v=0.4.0">
 </head>
 <body>
 <main>
@@ -73,7 +73,7 @@
         <li data-step="certificates"><span class="dot"></span><span>Get credentials from your server</span></li>
         <li data-step="mqtt"><span class="dot"></span><span>Connect to your local server</span></li>
       </ol>
-      <div id="success" hidden><div class="success-icon" aria-hidden="true">✓</div><p>Your fan reports a connection to your local server.</p><div class="next-action"><strong>One last step in Home Assistant</strong><p>Return to its setup dialog and select <strong>Submit</strong> to confirm. You can then close this tab.</p></div></div>
+      <div id="success" hidden><div class="success-icon" aria-hidden="true">✓</div><p>Your fan reports a connection to your local server. Home Assistant will verify it and finish setup automatically.</p><p><a id="return-ha" referrerpolicy="no-referrer">Return to Home Assistant</a> if you aren’t redirected.</p></div>
       <div data-status-slot></div>
       <div id="retry-actions" class="actions" hidden><button id="retry">Review and retry</button></div>
     </section>
@@ -85,8 +85,8 @@
     <details id="diagnostics" class="diagnostics" hidden><summary>Connection details</summary><pre id="log" aria-live="off"></pre></details>
   </div>
   <p id="expiry" class="expiry"></p>
-  <footer>Coway Local 0.3.0 · The browser is only needed for setup.</footer>
+  <footer>Coway Local 0.4.0 · The browser is only needed for setup.</footer>
 </main>
-<script type="module" src="./app.mjs?v=0.3.0"></script>
+<script type="module" src="./app.mjs?v=0.4.0"></script>
 </body>
 </html>

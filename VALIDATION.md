@@ -1,4 +1,4 @@
-# Validation for 0.3.0
+# Validation for 0.4.0
 
 Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 24 Python tests and 13 JavaScript tests.
 
@@ -139,3 +139,34 @@ new enrollment path. Default names come from Bluetooth; custom names persist.
 Earlier printed-serial device entries must be removed before re-enrolling the
 same hardware with the new flow. Integration and setup page must be updated
 together; old setup links are rejected before Bluetooth writes.
+
+
+## v0.4.0: open Bluetooth setup directly
+
+Selecting Add or provision a fan now opens the setup link immediately. The
+optional naming form has been removed; names can be changed through HA after
+enrollment. The existing HA flow test checks that the menu selection returns
+the pairing step with no input fields and creates exactly one pending token.
+
+## v0.4.0: automatic return from Bluetooth setup
+
+Add fan uses HA's native external step. The wizard navigates to HA after BLE
+reports the broker connection. A separate, one-use return token resumes the
+options flow; it does not authorize enrollment or declare the fan connected.
+HA waits for authenticated MQTT and the initialization acknowledgement, then
+advances automatically through its progress event. The callback focuses and
+closes back to the original HA tab, with a fixed integration-page fallback.
+
+Local verification on 2026-11-11:
+
+- All 24 Python and 14 JavaScript tests passed; Ruff, JavaScript syntax checking,
+  whitespace checks, and package generation passed.
+- The real isolated HA test exercised the public callback over loopback HTTP,
+  invalid and reused state, canceled and expired flows, an interrupted wait,
+  and genuine TLS MQTT completion both before and after the browser return.
+- The browser preview completed all four wizard steps with a synthetic BLE fan
+  and navigated automatically to the simulated HA return endpoint. No Submit
+  control was used. HTTP and HTTPS return URLs are accepted; malformed callback
+  URLs are rejected before provisioning.
+- This was local validation only. The hosted page and live HA installation were
+  not updated, and no physical fan was provisioned during this change.

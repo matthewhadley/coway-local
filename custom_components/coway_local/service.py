@@ -82,6 +82,7 @@ class Pairing:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     expires: float = field(default_factory=lambda: time.time() + PAIRING_SECONDS)
     complete: bool = False
+    finished: asyncio.Event = field(default_factory=asyncio.Event)
     connected: bool = False
     mac: str | None = None
     download: str | None = None
@@ -211,7 +212,8 @@ class LocalService:
         for runner in reversed(self.runners):
             await runner.cleanup()
         self.runners.clear()
-        self.pairings.clear()
+        for pairing in tuple(self.pairings.values()):
+            self.cancel_pairing(pairing)
         self.downloads.clear()
         for serial, state in self.states.items():
             state.online = False
@@ -243,6 +245,7 @@ class LocalService:
         self.pairings.pop(pairing.token, None)
         if pairing.download:
             self.downloads.pop(pairing.download, None)
+        pairing.finished.set()
 
     def expire_pairings(self):
         for pairing in tuple(self.pairings.values()):
@@ -262,8 +265,9 @@ class LocalService:
             "useBluetoothName": pairing.name_source == "bluetooth",
         }
 
-    def setup_url(self, pairing):
-        payload = json.dumps(self.setup_bundle(pairing), separators=(",", ":")).encode()
+    def setup_url(self, pairing, return_url):
+        bundle = self.setup_bundle(pairing) | {"returnUrl": return_url}
+        payload = json.dumps(bundle, separators=(",", ":")).encode()
         fragment = base64.urlsafe_b64encode(payload).decode().rstrip("=")
         url = urlsplit(self.config.provisioner_url)
         return urlunsplit((url.scheme, url.netloc, url.path, "", f"setup={fragment}"))

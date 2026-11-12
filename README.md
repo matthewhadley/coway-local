@@ -36,11 +36,10 @@ Reserve the HA host address in your router before provisioning. Changing the add
 ## Add a fan
 
 1. Open **Coway Local → Configure → Add or provision a fan**.
-2. Leave **Custom device name** blank to use the Bluetooth name, or enter a name such as “Bedroom purifier,” then select **Submit**. No printed serial number is needed.
-3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
-4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
-5. Follow the four-step wizard: **Fan → Wi-Fi → Review → Connect**. Choose the fan, select a 2.4 GHz Wi-Fi network and enter its password, then review the fan, network, and local server before starting setup. Back lets you revise the details. The Bluetooth picker filters for Coway setup advertisements without an exact model-name restriction; the page checks the selected device's services and identity.
-6. Watch connection progress in the final step. When it says **Finish in Home Assistant**, return to HA and press **Submit**. HA confirms the connection and the **3-week pre-filter cleaning interval** applied during enrollment.
+2. Bluetooth setup opens in a new tab. Use **Chrome on a nearby Mac or Android device** and keep the HA setup dialog open. If the browser blocks the tab, use HA’s **Open website** button. No serial number or device name is needed.
+3. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
+4. Follow the four-step wizard: **Fan → Wi-Fi → Review → Connect**. Choose the fan, select a 2.4 GHz Wi-Fi network and enter its password, then review the fan, network, and local server before starting setup. Back lets you revise the details. The Bluetooth picker filters for Coway setup advertisements without an exact model-name restriction; the page checks the selected device's services and identity.
+5. After Bluetooth setup succeeds, the browser returns to HA automatically. HA verifies the authenticated connection and the **3-week pre-filter cleaning interval** applied during enrollment, then finishes setup without a Submit step. If verification is still pending, HA shows progress until the fan confirms it. You can rename the device in HA afterward.
 
 Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
 
@@ -48,8 +47,8 @@ The setup link expires after 15 minutes and is revoked when canceled or complete
 
 ### Device names
 
-Names use an explicitly chosen custom name, otherwise the selected device's
-advertised Bluetooth name. If the advertisement has no name, setup uses the
+New fans use the selected device's advertised Bluetooth name. You can change
+the name in Home Assistant after adding the fan. If the advertisement has no name, setup uses the
 module name returned by the BLE identity response when available.
 
 The browser derives an 18-character local protocol identifier as `LOCAL0` followed
@@ -58,8 +57,8 @@ by the fan's 12 uppercase Wi-Fi MAC digits. This value is sent in the firmware's
 It is not the manufacturer's printed serial number, and HA does not display it
 as one. The physical AP-1022K accepted this identity for enrollment and control.
 
-Names are saved locally. Re-enrollment with a blank custom-name field preserves an
-existing custom name. Names assigned through HA's device settings take precedence
+Names are saved locally. Re-enrollment preserves existing custom names.
+Names assigned through HA's device settings take precedence
 and are never overwritten. Existing entity IDs remain unchanged on re-enrollment.
 
 The browser carries the Bluetooth label in a base64url path
@@ -84,7 +83,7 @@ The browser displays the destination server before transmitting anything. Its se
 | HA Container, bridge network | Publish all three TCP ports **with identical inside/outside port numbers**, and advertise the host’s LAN address. For the defaults: `8080:8080`, `9443:9443`, `9883:9883`. |
 | Separate IoT VLAN | Permit fan → HA on those ports and normal Wi-Fi/DHCP access. Browser and fan must be within Bluetooth range during setup. |
 
-HA’s normal UI can remain on HTTP port 8123. The HTTPS provisioning website only communicates with the fan using Bluetooth, so it does not need CORS, local-network browser permission, a reverse proxy to HA, or a HA login token. Do not embed it under an HTTP HA page in an iframe.
+HA’s normal UI can remain on HTTP port 8123. The HTTPS provisioning website sends settings over Bluetooth, then navigates back to HA’s frontend using a separate, one-use return token. Top-level navigation also works when HA uses HTTP; no browser fetch to HA, CORS, local-network browser permission, reverse proxy, or HA login token is needed. The return token only resumes the setup dialog; authenticated MQTT and the initialization reply determine success. Do not embed it under an HTTP HA page in an iframe.
 
 The fan’s CA bootstrap intentionally uses HTTP, matching the device protocol. Certificate enrollment and private-key downloads use TLS; MQTT additionally requires the enrolled device certificate. Keep these listeners on your trusted LAN, without Internet port forwarding. The old firmware requires compatibility with TLS 1.2 / `AES128-SHA256`.
 

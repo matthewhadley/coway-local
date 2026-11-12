@@ -10,7 +10,27 @@ const bundle = {
   certToken: 'a'.repeat(32), expiresAt: now + 900000,
   caUrl: 'http://192.0.2.1:8080/ca.pem',
   certSvrUrl: 'https://192.0.2.1:9443/n', useBluetoothName: false,
+  returnUrl: 'http://homeassistant.local:8123/api/coway_local/provisioning/return?flow_id=' + 'b'.repeat(32) + '&state=' + 'c'.repeat(32),
 };
+test('return navigation allows HTTP or HTTPS HA, with a separate one-use token', () => {
+  for (const scheme of ['http:', 'https:']) {
+    const returnUrl = bundle.returnUrl.replace('http:', scheme);
+    assert.equal(validateBundle({...bundle, returnUrl}, now).returnUrl, returnUrl);
+  }
+  for (const returnUrl of [
+    undefined, 'javascript:alert(1)', '//example.com',
+    bundle.returnUrl.replace('http:', 'ftp:'),
+    bundle.returnUrl.replace('homeassistant.local', 'user:password@homeassistant.local'),
+    bundle.returnUrl.replace('/api/coway_local/provisioning/return', '/somewhere-else'),
+    bundle.returnUrl + '&next=https://example.com', bundle.returnUrl + '#extra',
+    bundle.returnUrl + '&state=' + 'd'.repeat(32),
+    bundle.returnUrl.replace('state=', 'other='),
+    bundle.returnUrl.replace('flow_id=' + 'b'.repeat(32), 'flow_id=invalid'),
+  ]) assert.throws(() => validateBundle({...bundle, returnUrl}, now));
+  const config = wifiConfig(bundle, {name: 'Test', mac: '001122334455'},
+    {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4}, 'testwifi', now);
+  assert.equal(Object.hasOwn(config, 'returnUrl'), false);
+});
 test('device identity comes from Bluetooth without a serial in the HA setup link', async () => {
   assert.equal(localSerial('aa:bb:cc:dd:ee:ff'), 'LOCAL0AABBCCDDEEFF');
   assert.equal(localSerial('001122334455').length, 18);

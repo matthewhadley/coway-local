@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Start Coway Local",
-        "description": "This integration hosts the fan\u2019s local services. Use a reserved LAN IPv4 address reachable by the fan. After setup, choose Configure \u2192 Add fan. Tested with AP-1022K only.",
+        "description": "This integration hosts the fan’s local services. Use a reserved LAN IPv4 address reachable by the fan. After setup, choose Configure → Add fan. Tested with AP-1022K only.",
         "data": {
           "host": "Home Assistant LAN IPv4 address",
           "http_port": "CA download port (HTTP)",
@@ -16,7 +16,7 @@
       }
     },
     "error": {
-      "invalid_server": "Enter a reachable IPv4 address, three different ports (1024\u201365535), and an HTTPS provisioning URL."
+      "invalid_server": "Enter a reachable IPv4 address, three different ports (1024–65535), and an HTTPS provisioning URL."
     },
     "abort": {
       "single_instance_allowed": "Only one Coway Local server is needed. Use Configure to add another fan.",
@@ -32,21 +32,13 @@
           "server": "Server settings"
         }
       },
-      "add_fan": {
-        "title": "Add a fan",
-        "description": "Select your fan over Bluetooth in the next step; no serial number is needed. Leave the name blank to use its Bluetooth name, or enter a custom name. Existing custom names are preserved. Keep the Coway app closed during setup. Enrollment sets the pre-filter cleaning interval to 3 weeks; you can change it afterward.",
-        "data": {
-          "name": "Custom device name (optional)"
-        }
-      },
       "pairing": {
-        "title": "Provision {name}",
-        "description": "[Open Bluetooth setup]({setup_url}) in a **new Chrome tab** on a nearby Mac or Android device. Enter Wi-Fi credentials there. This link expires in 15 minutes.\n\nAfter the fan reports connected, return here and select Submit. Home Assistant will confirm the connection and set the pre-filter cleaning interval to 3 weeks. You can change it afterward.",
-        "data": {}
+        "title": "Bluetooth setup",
+        "description": "Bluetooth setup opens in a new tab. Use Chrome on a nearby Mac or Android device, keep the Coway app closed, and leave this dialog open. If the tab does not open, use the button below.\n\nWhen setup finishes, you will return here automatically. Home Assistant will verify the fan’s connection and confirm its 3-week pre-filter cleaning interval. No Submit step is needed. The setup link expires in 15 minutes."
       },
       "server": {
         "title": "Server settings",
-        "description": "Changing the advertised address or ports requires provisioning existing fans again. Reserve the host\u2019s LAN address before setup. Changing settings restarts this integration.",
+        "description": "Changing the advertised address or ports requires provisioning existing fans again. Reserve the host’s LAN address before setup. Changing settings restarts this integration.",
         "data": {
           "host": "Home Assistant LAN IPv4 address",
           "http_port": "CA download port (HTTP)",
@@ -55,15 +47,21 @@
           "bind_host": "Listen address",
           "provisioner_url": "HTTPS provisioning page URL"
         }
+      },
+      "verify": {
+        "title": "Finishing fan setup"
       }
     },
     "error": {
-      "invalid_server": "Enter a reachable IPv4 address, three different ports (1024\u201365535), and an HTTPS provisioning URL.",
-      "cannot_start_pairing": "The local service is unavailable or there are too many active setup attempts.",
-      "not_connected": "Waiting for the fan to connect and confirm the 3-week pre-filter cleaning interval. Finish Bluetooth setup, wait a moment, then submit again."
+      "invalid_server": "Enter a reachable IPv4 address, three different ports (1024–65535), and an HTTPS provisioning URL."
     },
     "abort": {
-      "pairing_expired": "Setup expired. Choose Add fan to create a new link."
+      "pairing_expired": "Setup expired. Choose Add fan to create a new link.",
+      "cannot_start_pairing": "Could not start setup. Check that the local service is running, Home Assistant has a frontend URL, and there are fewer than eight active setup attempts.",
+      "pairing_interrupted": "Setup was canceled or the local service stopped. Choose Add fan to start again."
+    },
+    "progress": {
+      "verify_connection": "Waiting for your fan to connect securely and confirm its 3-week pre-filter cleaning interval. Setup will finish automatically."
     }
   }
 }

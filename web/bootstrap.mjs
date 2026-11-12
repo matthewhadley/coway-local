@@ -1,5 +1,5 @@
 // Enrollment data stays in memory. No HA access token or Wi-Fi password belongs here.
-import {canonicalMac, localSerial, text, uuid} from './protocol.mjs?v=0.3.0';
+import {canonicalMac, localSerial, text, uuid} from './protocol.mjs?v=0.4.0';
 
 export function requestFan(bluetooth) {
   // Keep this synchronous so Chrome's chooser retains the click's user activation.
@@ -55,10 +55,19 @@ export function validateBundle(value, now = Date.now()) {
       || [ca, cert].some(u => u.username || u.password || u.search || u.hash
           || Number(u.port) < 1024 || Number(u.port) > 65535)
       || ca.port === cert.port) throw new Error('Invalid local server addresses in setup link.');
+  const back = new URL(value.returnUrl);
+  if (!['http:', 'https:'].includes(back.protocol) || !back.hostname
+      || back.username || back.password || back.hash
+      || back.pathname !== '/api/coway_local/provisioning/return'
+      || [...back.searchParams.keys()].sort().join(',') !== 'flow_id,state'
+      || !/^[a-f0-9]{32}$/.test(back.searchParams.get('flow_id') ?? '')
+      || !/^[A-Za-z0-9_-]{32}$/.test(back.searchParams.get('state') ?? ''))
+    throw new Error('Invalid Home Assistant return address. Create a new setup link.');
   return Object.freeze({
     v: 2, model: value.model, name: value.name,
     certToken: value.certToken, expiresAt: value.expiresAt,
     caUrl: ca.href, certSvrUrl: cert.href,
+    returnUrl: back.href,
     useBluetoothName: value.useBluetoothName,
   });
 }

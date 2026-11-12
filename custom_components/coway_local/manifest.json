@@ -6,6 +6,7 @@
   ],
   "config_flow": true,
   "dependencies": [
+    "http",
     "network"
   ],
   "documentation": "https://github.com/scottjg/coway-local",
@@ -15,5 +16,5 @@
   "requirements": [
     "amqtt==0.12.1"
   ],
-  "version": "0.3.0"
+  "version": "0.4.0"
 }

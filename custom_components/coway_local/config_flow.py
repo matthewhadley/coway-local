@@ -1,14 +1,19 @@
 """Server setup and temporary Bluetooth enrollment links."""
 
+import asyncio
+import secrets
 import time
 from dataclasses import asdict
+from urllib.parse import urlencode
 
 import probatio as vol
 from homeassistant import config_entries
 from homeassistant.components import network
 from homeassistant.core import callback
+from homeassistant.helpers.network import NoURLAvailableError
 
 from .const import DEFAULT_PORTS, DOMAIN, PROVISIONER_URL
+from .provisioning import EXPIRES_KEY, RETURN_PATH, STATE_KEY, frontend_url
 from .service import ServerConfig
 
 
@@ -63,9 +68,12 @@ class OptionsFlow(config_entries.OptionsFlow):
     def __init__(self):
         self.pairing = None
         self.pairing_service = None
+        self.setup_url = None
+        self.verify_task = None
 
     @callback
     def async_remove(self):
+        self.context.pop(STATE_KEY, None)
         if self.pairing and self.pairing_service:
             self.pairing_service.cancel_pairing(self.pairing)
 
@@ -74,43 +82,56 @@ class OptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_add_fan(self, user_input=None):
         service = self.config_entry.runtime_data
-        errors = {}
-        if user_input is not None:
-            try:
-                self.pairing = service.begin_pairing(user_input.get("name", ""))
-                self.pairing_service = service
-            except ValueError, ConnectionError:
-                errors["base"] = "cannot_start_pairing"
-            else:
-                return await self.async_step_pairing()
-        return self.async_show_form(
-            step_id="add_fan",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("name", default=""): str,
-                }
-            ),
-            errors=errors,
-        )
+        try:
+            base = frontend_url(self.hass)
+            self.pairing = service.begin_pairing()
+            self.pairing_service = service
+        except ValueError, ConnectionError, NoURLAvailableError:
+            return self.async_abort(reason="cannot_start_pairing")
+        state = secrets.token_urlsafe(24)
+        self.context[STATE_KEY] = state
+        self.context[EXPIRES_KEY] = self.pairing.expires
+        query = urlencode({"flow_id": self.flow_id, "state": state})
+        self.setup_url = service.setup_url(self.pairing, f"{base}{RETURN_PATH}?{query}")
+        return await self.async_step_pairing()
 
     async def async_step_pairing(self, user_input=None):
-        service = self.config_entry.runtime_data
-        if self.pairing is None:
-            return await self.async_step_add_fan()
+        if user_input and user_input.get("returned"):
+            return self.async_external_step_done(next_step_id="verify")
+        if self.pairing.finished.is_set() or time.time() > self.pairing.expires:
+            return self.async_external_step_done(next_step_id="finish")
+        return self.async_external_step(
+            step_id="pairing",
+            url=self.setup_url,
+        )
+
+    async def _wait_for_pairing(self):
+        try:
+            async with asyncio.timeout(max(0, self.pairing.expires - time.time())):
+                await self.pairing.finished.wait()
+        except TimeoutError:
+            self.pairing_service.cancel_pairing(self.pairing)
+
+    async def async_step_verify(self, user_input=None):
+        if self.verify_task is None:
+            if self.pairing.finished.is_set() or time.time() > self.pairing.expires:
+                return await self.async_step_finish()
+            self.verify_task = self.hass.async_create_background_task(
+                self._wait_for_pairing(), "Coway Local enrollment verification"
+            )
+        if self.verify_task.done():
+            return self.async_show_progress_done(next_step_id="finish")
+        return self.async_show_progress(
+            step_id="verify",
+            progress_action="verify_connection",
+            progress_task=self.verify_task,
+        )
+
+    async def async_step_finish(self, user_input=None):
         if self.pairing.complete:
             return self.async_create_entry(title="", data=dict(self.config_entry.options))
-        if time.time() > self.pairing.expires:
-            service.cancel_pairing(self.pairing)
-            return self.async_abort(reason="pairing_expired")
-        return self.async_show_form(
-            step_id="pairing",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "setup_url": service.setup_url(self.pairing),
-                "name": self.pairing.name or "your fan",
-            },
-            errors={"base": "not_connected"} if user_input is not None else {},
-        )
+        reason = "pairing_expired" if time.time() >= self.pairing.expires else "pairing_interrupted"
+        return self.async_abort(reason=reason)
 
     async def async_step_server(self, user_input=None):
         defaults = self.config_entry.data | self.config_entry.options

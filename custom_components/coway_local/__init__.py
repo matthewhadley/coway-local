@@ -9,6 +9,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN
+from .provisioning import ProvisioningReturnView
 from .service import LocalService, ServerConfig
 
 PLATFORMS = [
@@ -19,6 +20,11 @@ PLATFORMS = [
     Platform.BINARY_SENSOR,
 ]
 type CowayConfigEntry = ConfigEntry[LocalService]
+
+
+async def async_setup(hass: HomeAssistant, config) -> bool:
+    hass.http.register_view(ProvisioningReturnView)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: CowayConfigEntry) -> bool:

@@ -1,5 +1,5 @@
-import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs?v=0.3.0';
-import {decodeSetup,readIdentity,requestFan,wifiConfig} from './bootstrap.mjs?v=0.3.0';
+import {bytes,uuid,p001,p002,randomLetters,fragments,Reassembler,decodeProto,parseScan,STATUS,FAILURE_CODES} from './protocol.mjs?v=0.4.0';
+import {decodeSetup,readIdentity,requestFan,wifiConfig} from './bootstrap.mjs?v=0.4.0';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -332,10 +332,15 @@ $('provision').addEventListener('click',async()=>{
     if(attempt!==generation) return;
     progress('mqtt');phase='complete';busy=false;
     log('Fan reported broker connection; Home Assistant will verify its authenticated session.');
+    const returnUrl=saved.returnUrl;
     saved=null;clearTimeout(expiryTimer);releaseConnection();
-    $('title-connect').textContent='Finish in Home Assistant';
+    $('title-connect').textContent='Returning to Home Assistant';
+    $('return-ha').href=returnUrl;
     $('connect-help').hidden=true;$('progress').hidden=true;$('success').hidden=false;
     $('expiry').textContent='';status();controls();$('title-connect').focus({preventScroll:true});
+    // Top-level navigation works even when the HA frontend uses HTTP.
+    // Never send Wi-Fi credentials, a HA access token, or the enrollment token.
+    window.location.replace(returnUrl);
   } catch(error) {if(attempt===generation) fail(error);}
   finally {if(attempt===generation) {busy=false;controls();}}
 });
