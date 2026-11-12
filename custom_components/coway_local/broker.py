@@ -6,6 +6,7 @@ See LICENSE.amqtt. Private hooks are deliberately version-pinned and wire-tested
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from importlib.metadata import version
 
@@ -76,6 +77,21 @@ class CowayBroker(Broker):
         der = tls.getpeercert(binary_form=True) if tls else None
         return bool(device and der and hashlib.sha256(der).hexdigest() == device["fingerprint"])
 
+    def _rejection_reason(self, session) -> str:
+        """Say why, without logging the client's identity."""
+        if session.client_id not in self.devices:
+            return "Client is not enrolled"
+        # A resumed TLS session carries the certificate from its original
+        # handshake, which can predate a re-enrollment.
+        resumed = getattr(session.ssl_object, "session_reused", None)
+        return f"Certificate does not match the enrolled client (resumed TLS session: {resumed})"
+
+    @staticmethod
+    async def _close(writer):
+        # A rejected client may vanish without completing the TLS shutdown.
+        with contextlib.suppress(TimeoutError, OSError):
+            await writer.close()
+
     async def _initialize_client_session(self, reader, writer, remote_address, remote_port):
         # Authenticate BEFORE touching a cached session: otherwise an enrolled
         # device could evict another device by claiming its MQTT client ID.
@@ -84,10 +100,11 @@ class CowayBroker(Broker):
         )
         session.ssl_object = writer.get_ssl_info()
         if not self._identity_valid(session):
-            await writer.close()
-            raise MQTTError("Certificate does not match the enrolled client")
+            reason = self._rejection_reason(session)
+            await self._close(writer)
+            raise MQTTError(reason)
         if session.will_flag and session.will_topic != topic("MITGLWT", session.client_id):
-            await writer.close()
+            await self._close(writer)
             raise MQTTError("Invalid device will topic")
         if session.clean_session:
             await self._delete_session(session.client_id)

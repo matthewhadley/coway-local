@@ -3,7 +3,9 @@ export const utf8 = new TextEncoder();
 export const text = new TextDecoder();
 export const uuid = short => `0000${short}-0000-1000-8000-00805f9b34fb`;
 export const FIELDS = { 1: 'cmd', 2: 'ssid', 3: 'pwd', 4: 'bssid', 5: 'type', 6: 'ip', 7: 'gateway', 8: 'subnet', 9: 'dns', 10: 'macAddr', 11: 'caUrl', 12: 'certSvrUrl', 13: 'certToken', 14: 'serial', 15: 'caFile' };
-export const FAILURE_CODES = new Set([1, 2, 3, 4, 5, 6, 11, 12, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 41, 42, 43, 44, 51, 52, 73]);
+export const FAILURE_CODES = new Set([1, 2, 3, 4, 5, 6, 11, 12, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 41, 42, 43, 44, 51, 73]);
+// The fan keeps retrying the broker after reporting this, and usually connects.
+export const BROKER_RETRY = 52;
 export const STATUS = { 1: 'Wi-Fi association failed', 2: 'Wi-Fi association failed', 3: 'Wi-Fi association failed', 4: 'Wi-Fi association failed', 5: 'DHCP failed', 6: 'Configuration rejected', 10: 'Wi-Fi connected', 11: 'CA server unreachable', 12: 'CA download failed', 20: 'CA downloaded', 21: 'Certificate server unreachable', 30: 'Certificate token rejected', 40: 'Certificate server accepted setup', 41: 'Certificate download unreachable', 42: 'Certificate download failed', 43: 'Private-key download unreachable', 44: 'Private-key download failed', 50: 'Device credentials downloaded', 51: 'Broker DNS failed', 52: 'Broker connection failed', 61: 'Local MQTT broker connected', 71: 'Setup initialized', 72: 'Bluetooth key accepted', 73: 'Bluetooth key rejected' };
 
 export function bytes(value) {

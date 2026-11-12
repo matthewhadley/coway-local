@@ -1,5 +1,5 @@
-import { bytes, uuid, p001, p002, randomLetters, fragments, Reassembler, decodeProto, parseScan, STATUS, FAILURE_CODES } from './protocol.mjs?v=0.5.1';
-import { decodeSetup, readIdentity, requestFan, wifiConfig } from './bootstrap.mjs?v=0.5.1';
+import { bytes, uuid, p001, p002, randomLetters, fragments, Reassembler, decodeProto, parseScan, STATUS, FAILURE_CODES, BROKER_RETRY } from './protocol.mjs?v=0.5.1-2';
+import { decodeSetup, readIdentity, requestFan, wifiConfig } from './bootstrap.mjs?v=0.5.1-2';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -290,19 +290,31 @@ async function send(message, label) {
   for (const packet of packets) await channels.get(CONFIG).characteristic.writeValueWithResponse(packet);
   log(`${label}: ${packets.length} writes, maximum 20 bytes each.`);
 }
+const BROKER_HELP = 'The fan reported that it could not connect to your local server, and has not reported success since. It may still have connected: check Coway Local in Home Assistant before trying again. If the fan is not there, check the server address and ports.';
 async function waitStatus(command, final, timeout) {
-  const deadline = performance.now() + timeout;
+  let deadline = performance.now() + timeout, brokerRetry = false;
+  const next = async () => {
+    try { return await channels.get(CONFIG).receive(Math.max(1, deadline - performance.now())); }
+    catch (error) { if (brokerRetry) throw new Error(BROKER_HELP); throw error; }
+  };
   while (performance.now() < deadline) {
-    const fields = decodeProto(await channels.get(CONFIG).receive(Math.max(1, deadline - performance.now())));
+    const fields = decodeProto(await next());
     const code = fields[3] ?? 0;
     const description = STATUS[code] || `Device status ${code}`;
     log(`${code}: ${description}`);
+    if (code === BROKER_RETRY) {
+      // Seen on re-enrollment: the first attempt is rejected, a later one succeeds.
+      if (!brokerRetry) deadline = Math.min(deadline, performance.now() + 60000);
+      brokerRetry = true;
+      status('The fan could not connect to your local server yet. It keeps trying…');
+      continue;
+    }
     if (fields[2] !== 1 || FAILURE_CODES.has(code)) throw new Error(description);
     if (code === 10) { progress('wifi'); status('Getting credentials from your local server…'); }
     if (code === 50) { progress('certificates'); status('Connecting to your local server…'); }
     if (fields[1] === command && code === final) return;
   }
-  throw new Error('Timed out waiting for device setup');
+  throw new Error(brokerRetry ? BROKER_HELP : 'Timed out waiting for device setup');
 }
 $('provision').addEventListener('click', async () => {
   if (!ensureLink()) return;

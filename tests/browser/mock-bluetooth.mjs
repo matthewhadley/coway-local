@@ -2,7 +2,7 @@
 import {encodeProto,fragments,Reassembler,concat,utf8,text,uuid} from '/protocol.mjs';
 
 const fixture=document.createElement('fieldset');
-fixture.innerHTML='<legend>Preview · simulated fan</legend><label for="scenario">Test scenario</label><select id="scenario"><option value="success">Successful setup</option><option value="cancel">Cancel Bluetooth picker</option><option value="unsupported">Unsupported device</option><option value="empty">No Wi-Fi networks</option><option value="wifi-failure">Wi-Fi connection fails</option><option value="disconnect">Disconnect during setup</option></select><button id="drop-link" class="secondary" type="button">Simulate Bluetooth disconnect</button><p><a href="/preview?expired=1">Open expired link</a> · <a href="/">Open without setup link</a></p>';
+fixture.innerHTML='<legend>Preview · simulated fan</legend><label for="scenario">Test scenario</label><select id="scenario"><option value="success">Successful setup</option><option value="cancel">Cancel Bluetooth picker</option><option value="unsupported">Unsupported device</option><option value="empty">No Wi-Fi networks</option><option value="wifi-failure">Wi-Fi connection fails</option><option value="broker-retry">Broker rejects first attempt</option><option value="broker-down">Broker never connects</option><option value="disconnect">Disconnect during setup</option></select><button id="drop-link" class="secondary" type="button">Simulate Bluetooth disconnect</button><p><a href="/preview?expired=1">Open expired link</a> · <a href="/">Open without setup link</a></p>';
 document.querySelector('main').append(fixture);
 const scenario=()=>document.getElementById('scenario').value;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -45,7 +45,8 @@ class Characteristic extends EventTarget {
     }
     if(scenario()==='disconnect') {setTimeout(()=>this.owner.gatt.disconnect(),300);return;}
     if(scenario()==='wifi-failure') {setTimeout(()=>this.emit(encodeProto({1:2,2:0,3:1})),350);return;}
-    [10,20,40,50,61].forEach((code,index)=>setTimeout(()=>this.emit(encodeProto({1:2,2:1,3:code})),500*(index+1)));
+    const codes=scenario()==='broker-retry'?[10,20,40,50,52,61]:scenario()==='broker-down'?[10,20,40,50,52]:[10,20,40,50,61];
+    codes.forEach((code,index)=>setTimeout(()=>this.emit(encodeProto({1:2,2:code===52?0:1,3:code})),500*(index+1)));
   }
 }
 class Fan extends EventTarget {
