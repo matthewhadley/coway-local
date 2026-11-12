@@ -1,113 +1,137 @@
 # Coway Local
 
-A Home Assistant custom integration for local control of Coway Air purifiers, tested with the **AP-1022K**. Using this integration disconnects your device from the Coway cloud. The device is paired with Home Assistant directly, through this custom integration that implements a modified MQTT broker which the fan connects to.
+A Home Assistant custom integration for local control of Coway air purifiers, tested with the **AP-1022K**.
 
-This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Bluetooth discovery uses the manufacturer's advertisement layouts found in the IoCare app. Other models can be tried if they advertise those layouts and expose the same setup services and identity format. Only AP-1022K has been tested on physical hardware; other models and firmware are unverified. See [discovery evidence and limitations](BLE_DISCOVERY.md).
+Using this integration disconnects your fan from the Coway cloud. The fan is paired with Home Assistant directly: the integration runs its own MQTT broker, and the fan connects to that instead. The Coway mobile app no longer controls a fan set up this way.
 
-## Included
+Setup is done from a web page that uses Web Bluetooth to give the fan your Wi-Fi details and the address of your Home Assistant instance. Chrome only allows Web Bluetooth on HTTPS pages, so the setup page is hosted on GitHub Pages instead of being served by Home Assistant.
 
-- Fan entity: power, three manual speeds, smart and sleep modes.
-- Select entities: lighting levels 1–4, timer, smart sensitivity, pre-filter cleaning cycle.
-- Measurement sensors: PM2.5, ambient light, pre-filter remaining, and MAX2 filter remaining.
-- Connection sensor, refresh-status button, and an optional last-seen timestamp (disabled by default).
-- Independent credentials and exact MQTT topic permissions for each fan.
-- Persistent local CA, mutual TLS, 15-minute enrollment links, and redacted diagnostics.
-- Static Web Bluetooth page with no analytics, external JavaScript or browser-to-HA API calls.
+This is experimental. It implements the protocol observed on one AP-1022K, and no other model or firmware has been tested. See [Compatibility](#compatibility).
+
+## What you get
+
+- **Fan:** power, three manual speeds, smart and sleep modes.
+- **Settings:** lighting level, timer, smart-mode sensitivity, pre-filter cleaning cycle.
+- **Sensors:** PM2.5, ambient light, pre-filter remaining, MAX2 filter remaining.
+- **Status:** a connection sensor, a refresh button, and a last-seen timestamp (disabled by default).
+
+## Requirements
+
+- Home Assistant Core **2026.10.2** or newer.
+- A fixed LAN address for Home Assistant. Reserve it in your router: the address is written into the fan, and the fan must be set up again if it changes.
+- **Chrome on a Mac or Android device** within Bluetooth range of the fan, for the one-time setup. Safari and iPhone browsers do not work.
+- A 2.4 GHz Wi-Fi network for the fan.
 
 ## Install
 
-Minimum supported/tested Home Assistant Core: **2026.10.2** (Python 3.14).
+**With HACS:** add `https://github.com/scottjg/coway-local` as a custom repository with category **Integration**, install **Coway Local**, and restart Home Assistant.
 
-For a manual install, copy `custom_components/coway_local` into your HA configuration directory and restart Home Assistant. The release ZIP has the same directory layout and can be extracted into `/config`.
+**Manually:** copy `custom_components/coway_local` into your Home Assistant configuration directory and restart. The release ZIP has the same layout and can be extracted into `/config`.
 
-In HACS, add `https://github.com/scottjg/coway-local` as a custom repository, category **Integration**. Install **Coway Local**, then restart HA.
+Then add **Coway Local** under **Settings → Devices & services → Add integration**.
 
-Add **Coway Local** under **Settings → Devices & services → Add integration**.
+The form shows the LAN address that Home Assistant detected for itself. In most installations you only need to confirm it and submit.
 
-The form shows the LAN **IPv4 address** that Home Assistant detected for itself. In most installations you only need to confirm it and submit.
+- **Address:** change it only if the fan cannot reach Home Assistant there. With Docker bridge networking, enter the Docker host’s LAN address instead of the detected container address.
+- **Advanced settings:** the three TCP ports the fan connects to (HTTP **8080**, HTTPS **9443**, MQTT **9883**), the listen address, and the setup page URL. The defaults suit most installations.
 
-- **Address:** change it only if the fan cannot reach Home Assistant there. With Docker bridge networking, enter the Docker host’s LAN address instead of the detected container address. Reserve the address in your router before provisioning.
-- **Advanced settings:** three TCP ports (defaults: HTTP **8080**, HTTPS **9443**, MQTT TLS **9883**), the listen address, and the provisioning page URL. The default page is `https://scottjg.github.io/coway-local/`; you can also publish the included `web/` directory yourself, as described below.
-
-If a port is busy, HA reports setup retrying; choose another port under **Configure → Server settings**.
-
-Changing the address or ports requires provisioning the fan again. If the machine later loses the configured address, Coway Local raises a repair notice under **Settings → Repairs**.
+If the integration shows “setup retrying”, a port is probably in use. Choose another under **Configure → Server settings**.
 
 ## Add a fan
 
-1. Open **Coway Local → Configure → Add or provision a fan**.
-2. Bluetooth setup opens in a new tab. Use **Chrome on a nearby Mac or Android device** and keep the HA setup dialog open. If the browser blocks the tab, use HA’s **Open website** button. No serial number or device name is needed.
-3. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
-4. Follow the four-step wizard: **Fan → Wi-Fi → Review → Connect**. Choose the fan, select a 2.4 GHz Wi-Fi network and enter its password, then review the fan, network, and local server before starting setup. Back lets you revise the details. The Bluetooth picker filters for Coway setup advertisements without an exact model-name restriction; the page checks the selected device's services and identity.
-5. After Bluetooth setup succeeds, the browser returns to HA automatically. HA verifies the authenticated connection and the **3-week pre-filter cleaning interval** applied during enrollment, then finishes setup without a Submit step. If verification is still pending, HA explains that finishing setup can take another 2 minutes. Leave the dialog open until **Fan ready** appears. You can rename the device in HA afterward.
+1. Open **Coway Local → Configure → Add or provision a fan**. The Bluetooth setup page opens in a new tab. If the browser blocks it, use the **Open website** button. Keep the Home Assistant dialog open.
+2. Put the fan in Wi-Fi setup mode by holding down its **Mode** button, or whichever button controls the fan speed.
+3. Follow the wizard: choose the fan, choose a Wi-Fi network and enter its password, review, and connect.
+4. The browser returns to Home Assistant when Bluetooth setup succeeds. Home Assistant then waits for the fan to connect, which can take another 2 minutes. Leave the dialog open until **Fan ready** appears.
 
-Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
+The setup link expires after 15 minutes. If it expires, or the fan leaves setup mode, start again from step 1.
 
-The setup link expires after 15 minutes and is revoked when canceled or completed. If it expires or the fan exits setup mode, generate a new link and re-enter setup mode. Safari and iPhone browsers are not supported by this setup path.
+The Wi-Fi password is typed into the setup page and sent to the fan over Bluetooth. Home Assistant never receives or stores it.
+
+## Troubleshooting
+
+| Problem | What to check |
+| --- | --- |
+| The fan does not appear in the Bluetooth picker | The fan is in setup mode and you are using Chrome on a Mac or Android device. |
+| Wi-Fi connection fails | The network is 2.4 GHz and the password is correct. Put the fan back in setup mode and try again. |
+| Setup stalls after Wi-Fi connects | The fan cannot reach Home Assistant. Check the configured address, the three ports, and any firewall or VLAN rules between them. |
+| The integration shows “setup retrying” | Usually a port conflict, or the credential storage is unreadable. |
+| Controls are unavailable | Check the connection sensor, that the fan has power, and that it can still reach Home Assistant. Restarting the integration does not require setting the fan up again. |
+| A repair notice says the address changed | Home Assistant no longer has the address the fan was given. Restore the address, or set the new one under **Server settings** and set the fan up again. |
 
 ## Networking
 
-| Deployment | Network setup |
+The fan connects to Home Assistant on the three configured TCP ports. Changing the address or ports means setting up each fan again.
+
+| Deployment | What to do |
 | --- | --- |
-| Home Assistant OS | The listeners run in Core’s host network. Allow the fan to reach the HA machine on the three configured TCP ports. No add-on port mapping is involved. |
-| HA Container, host network | Use the Docker host’s LAN address. The listeners bind directly on that host. |
-| HA Container, bridge network | Publish all three TCP ports **with identical inside/outside port numbers**, and advertise the host’s LAN address. For the defaults: `8080:8080`, `9443:9443`, `9883:9883`. |
-| Separate IoT VLAN | Permit fan → HA on those ports and normal Wi-Fi/DHCP access. Browser and fan must be within Bluetooth range during setup. |
+| Home Assistant OS | Nothing extra. The ports are opened on the Home Assistant machine itself. |
+| Container, host network | Use the Docker host’s LAN address. |
+| Container, bridge network | Use the Docker host’s LAN address, and publish all three ports with the same number inside and outside: `8080:8080`, `9443:9443`, `9883:9883`. |
+| Fans on a separate VLAN | Allow the fans to reach Home Assistant on the three ports. |
 
-HA’s normal UI can remain on HTTP port 8123. The HTTPS provisioning website sends settings over Bluetooth, then navigates back to HA’s frontend using a separate, one-use return token. Top-level navigation also works when HA uses HTTP; no browser fetch to HA, CORS, local-network browser permission, reverse proxy, or HA login token is needed. The return token only resumes the setup dialog; authenticated MQTT and the initialization reply determine success. Do not embed it under an HTTP HA page in an iframe.
+Keep these ports on your trusted LAN. Do not forward them from the Internet.
 
-The fan’s CA bootstrap intentionally uses HTTP, matching the device protocol. Certificate enrollment and private-key downloads use TLS; MQTT additionally requires the enrolled device certificate. Keep these listeners on your trusted LAN, without Internet port forwarding. The old firmware requires compatibility with TLS 1.2 / `AES128-SHA256`.
+Home Assistant itself can stay on plain HTTP. The setup page talks to the fan over Bluetooth and then sends the browser back to Home Assistant with a one-use link; it makes no other requests to Home Assistant.
 
-## Serve the provisioning page
+<details>
+<summary>What each port carries</summary>
 
-The setup page is versioned by setup-link format. The integration appends `v1/` to the configured page URL, so each installed release opens a page that understands its links. An incompatible change to the link gets a new directory (`web/v2/`), and the old one stays published for people who have not updated.
+- **HTTP (8080):** the fan downloads the local certificate authority’s public certificate. The fan’s firmware does this over plain HTTP.
+- **HTTPS (9443):** the fan enrolls and downloads its own certificate and private key. Each setup link is valid for 15 minutes and for one fan.
+- **MQTT over TLS (9883):** the fan’s ongoing connection. It must present its enrolled certificate. The firmware needs TLS 1.2 with `AES128-SHA256`.
 
-To host it yourself, publish **`web/`** to a trusted HTTPS static host and enter that URL, without the `v1/`, in the integration’s advanced settings. The included GitHub Pages workflow deploys whenever `web/` changes on `main`, or manually:
+Each fan can publish and subscribe only on its own topics. The broker serves these fans only; it does not replace Home Assistant’s MQTT integration.
 
-1. Enable GitHub Pages with **GitHub Actions** as its source.
-2. Run **Actions → Provisioning page → Run workflow**.
+</details>
 
-The workflow also keeps the 0.4.2 page at the site root, which releases up to 0.4.2 open.
+## The setup page
 
-The static site has no backend. Anyone can host the code, but the site operator controls JavaScript that sees the enrollment token and Wi-Fi password. Use a deployment you trust; no third-party scripts are included.
+The setup page is a static site with no backend, analytics, or third-party scripts. By default the integration uses the copy published from this repository at `https://scottjg.github.io/coway-local/`.
 
-For a completely local setup page on the nearby computer:
+To host your own:
 
-```sh
-python3 -m http.server 18765 --bind 127.0.0.1 --directory web
-```
+- **On a static HTTPS host:** publish the `web/` directory and enter its URL as the setup page URL in the integration’s advanced settings.
+- **On the computer you run setup from:** serve it locally, set the setup page URL to `http://localhost:18765/`, and open the setup link in Chrome on that same computer. This also works without Internet access.
 
-Set the integration’s provisioning URL to `http://localhost:18765/`, then open its generated setup link in Chrome **on that computer**. Loopback is a secure-context exception; a plain HTTP LAN address is not. All web assets are included, so this option also works without Internet access.
+  ```sh
+  python3 -m http.server 18765 --bind 127.0.0.1 --directory web
+  ```
 
-## Storage and lifecycle
+The page is versioned by setup-link format. The integration appends `v1/` to the configured URL, so each installed release opens a page that understands its links. Enter the URL without the `v1/`.
 
-Credentials are stored under `/config/.storage/coway_local/` with private file permissions. Back up this directory together with HA’s config entries. Losing the CA or device credentials requires restoring that backup or provisioning the fan again. 
+## Backup and removal
 
-Each device’s certificate fingerprint is bound to its MQTT client ID. It can publish only its own observed status/event topics and subscribe only to its four observed command topics, including its exact `$aws/...` topic. The embedded broker is dedicated to these fans; it is not a general-purpose MQTT broker and does not replace an existing HA MQTT integration.
+Certificates and keys are stored in `/config/.storage/coway_local/`. Include that directory in your backups. If it is lost, each fan must be set up again.
 
-Unloading or restarting the integration closes all three listeners. Fans reconnect automatically when it returns. Removing a fan from HA revokes its broker access and deletes its stored client credentials. This does not factory-reset the physical fan. Removing and reinstalling the integration preserves the credential store for recovery.
+- **Restarting or reloading** the integration disconnects the fans briefly. They reconnect on their own.
+- **Removing a fan** in Home Assistant revokes its access and deletes its credentials. It does not reset the fan itself.
+- **Removing the integration** keeps the stored credentials, so reinstalling it restores your fans.
 
-## Limits and troubleshooting
+## Compatibility
 
-The four measurement sensors consume the fan's periodic `A1020` reports:
+Tested on one AP-1022K (MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`), set up from Chrome on macOS into Home Assistant OS 18.3 with Core 2026.10.2. Setup, control, sensors, and reconnecting after a restart work on that fan.
 
-| Sensor | Attribute | Interpretation |
+Not tested: other models, other firmware, and Home Assistant Container networking.
+
+Other models may get through Bluetooth setup, because the picker accepts any device that advertises like a Coway fan in setup mode ([how discovery works](BLE_DISCOVERY.md)). That does not make them compatible: the controls and sensors use the AP-1022K’s mappings.
+
+Not implemented: PM10 and other air-quality metrics, filter notification flags, and firmware updates.
+
+### Sensor mappings
+
+The sensors read the fan’s periodic `A1020` reports.
+
+| Sensor | Attribute | Meaning |
 | --- | --- | --- |
 | PM2.5 | `A1020.0001` | Concentration in μg/m³ |
-| Ambient light | `A1020.0007` | Illuminance in lx; physical scaling has not been independently calibrated |
-| Pre-filter remaining | `A1020.0011` | `100 − usage`, percent remaining until cleaning |
-| MAX2 filter remaining | `A1020.0012` | `100 − usage`, percent remaining until replacement |
+| Ambient light | `A1020.0007` | Illuminance in lx. The scaling has not been calibrated. |
+| Pre-filter remaining | `A1020.0011` | `100 − usage`: percent remaining until cleaning |
+| MAX2 filter remaining | `A1020.0012` | `100 − usage`: percent remaining until replacement |
 
-PM2.5 is identified by [Coway's public sensor definitions](https://iocare2.coway.com/_next/static/chunks/3kv1xb4at9t7g.js). The light and filter mappings agree with [PyCoway's sensor codes](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/constants.py) and [filter conversion](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/devices/parser.py). All four attributes were observed on the tested fan; filter percentages have not been compared side by side with the original app.
+PM2.5 is identified by [Coway’s public sensor definitions](https://iocare2.coway.com/_next/static/chunks/3kv1xb4at9t7g.js). The light and filter mappings agree with [PyCoway’s sensor codes](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/constants.py) and [filter conversion](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/devices/parser.py). The filter percentages have not been compared side by side with the Coway app.
 
-- Other models can be tried, but the server uses the AP-1022K control and telemetry mappings and MQTT service code `002AIR007`. A fan that completes Bluetooth setup is not necessarily compatible with them.
-- PM10, other air-quality metrics, filter notification flags, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
-- Wi-Fi association failure: use a 2.4 GHz network compatible with the fan, re-enter setup mode, and check the password.
-- Certificate or broker failure: check the advertised LAN IP, the three ports, routing/VLAN isolation, and HA logs. Keep the short HTTPS download URLs intact.
-- HA setup retrying: commonly a port conflict or unreadable credential storage. Other integrations keep running.
-- Controls unavailable: check the connection sensor, fan power, and listener reachability. Restarting the integration should not require provisioning again.
-
-This integration is independent of the Coway IoCare cloud integration. Provisioning to this server replaces the fan’s cloud destination; the original mobile app is not the controller for this local configuration.
+A sensor shows “unknown” until the fan’s first report after connecting, and when the fan reports a value that is out of range.
 
 ## Development
 
@@ -120,14 +144,18 @@ node --test tests/web.test.mjs
 .venv/bin/python scripts/package.py
 ```
 
-The Python tests run the service and a real Home Assistant instance against loopback HTTP, TLS, and MQTT sockets with temporary credentials. No test needs a fan. To try the wizard with a simulated Bluetooth fan, run `python tests/browser/serve.py` and open `http://localhost:18765/preview`.
+The Python tests run the service and a real Home Assistant instance against loopback HTTP, TLS, and MQTT sockets with temporary credentials. No test needs a fan.
 
-## Tested hardware
+To try the setup wizard with a simulated fan, run `python tests/browser/serve.py` and open `http://localhost:18765/preview`.
 
-One AP-1022K (MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`), enrolled from Chrome on macOS into Home Assistant OS 18.3 with Core 2026.10.2. Enrollment, control, telemetry, and reconnecting after an HA restart work on that fan. Other models, other firmware, and HA Container networking have not been tested on hardware.
+Things to know before changing code:
 
-aMQTT is pinned to **0.12.1** because the adapter overrides private broker hooks. Re-run wire and HA compatibility tests before changing that pin.
+- **aMQTT is pinned to 0.12.1** because the broker overrides its private hooks. Re-run the tests before changing the pin.
+- **The setup page deploys from `main`.** Any change under `web/` goes live through the GitHub Pages workflow, for every installed release on that link format. A change that older releases cannot handle needs a new `web/v2/` directory and a bump to `SETUP_FORMAT` in `const.py`; `web/v1/` stays published.
+- **The site root serves the 0.4.2 page**, which releases up to 0.4.2 open. The workflow builds it from the `v0.4.2` tag.
 
-MIT licensed. The broker adapter includes behavior adapted from aMQTT; its copyright and license are preserved in `LICENSE.amqtt`. This project is not affiliated with Coway or an official Home Assistant integration.
+## License
 
-Packaging follows the [HACS integration layout](https://www.hacs.xyz/docs/publish/integration/); the static deployment follows [GitHub Pages’ Actions workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+MIT. The broker includes behavior adapted from aMQTT, whose copyright and license are preserved in `LICENSE.amqtt`.
+
+This project is not affiliated with Coway and is not an official Home Assistant integration.
