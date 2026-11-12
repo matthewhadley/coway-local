@@ -1,5 +1,5 @@
 // Enrollment data stays in memory. No HA access token or Wi-Fi password belongs here.
-import { canonicalMac, localSerial, text, uuid } from './protocol.mjs?v=0.5.0';
+import { canonicalMac, localSerial, text, uuid } from './protocol.mjs?v=0.5.1';
 
 // Setup-link format served by this directory (v1/). Must match SETUP_FORMAT in const.py.
 export const FORMAT = 1;
