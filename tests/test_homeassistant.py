@@ -24,6 +24,7 @@ from homeassistant.helpers import frame
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
 
+from custom_components.coway_local import async_remove_config_entry_device
 from custom_components.coway_local.const import DOMAIN
 from custom_components.coway_local.provisioning import EXPIRES_KEY
 from custom_components.coway_local.service import ServerConfig
@@ -345,3 +346,25 @@ async def test_server_settings_form_accepts_the_advanced_section(ha):
     saved = await ha.options.async_configure(flow["flow_id"], {"host": host, "advanced": advanced})
     assert saved["type"] == "create_entry"
     assert saved["data"] == asdict(ha.service.config)
+
+
+async def test_fan_removed_and_enrolled_again_gets_its_entities_back(ha, ha_fan):
+    hass, service = ha.hass, ha.service
+    devices = dr.async_get(hass)
+    device = devices.async_get_device_by_identifier((DOMAIN, SERIAL), ha.entry.entry_id)
+
+    # What Home Assistant does when the user deletes the device.
+    await asyncio.to_thread(ha_fan.close)
+    assert await async_remove_config_entry_device(hass, ha.entry, device)
+    devices.async_remove_device(device.id)
+    await hass.async_block_till_done()
+    assert hass.states.get("fan.test_fan") is None
+
+    await enroll(service)
+    again = await asyncio.to_thread(Fan, service.root, service.config.mqtt_port)
+    try:
+        await asyncio.to_thread(again.open)
+        await eventually(lambda: getattr(hass.states.get("fan.test_fan"), "state", None) == "on")
+        assert devices.async_get_device_by_identifier((DOMAIN, SERIAL), ha.entry.entry_id)
+    finally:
+        await asyncio.to_thread(again.close)

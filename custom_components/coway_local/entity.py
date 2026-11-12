@@ -12,6 +12,8 @@ def setup_devices(entry, async_add_entities, factory):
     known = set()
 
     def changed(serial=None):
+        # Forget removed fans, so one that is enrolled again gets entities again.
+        known.intersection_update(service.devices)
         for device_id in service.devices:
             if device_id not in known:
                 known.add(device_id)
