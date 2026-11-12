@@ -16,9 +16,7 @@ env:
   # Releases up to 0.4.2 open the site root, so it keeps serving their page.
   LEGACY_ROOT: v0.4.2
 jobs:
-  deploy:
-    environment:
-      name: github-pages
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -38,4 +36,12 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
+  # A separate job: deploying in the same job as the upload can run before the
+  # artifact is listed, and a re-run then finds two artifacts and fails again.
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/deploy-pages@v4
