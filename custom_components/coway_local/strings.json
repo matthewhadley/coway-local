@@ -34,9 +34,8 @@
       },
       "add_fan": {
         "title": "Add a fan",
-        "description": "Enter the serial number printed on the device label. Leave the name blank to use its product name when known, or its Bluetooth name otherwise. Existing custom names are preserved. Keep the Coway app closed during setup. Enrollment sets the pre-filter cleaning interval to 3 weeks; you can change it afterward.",
+        "description": "Select your fan over Bluetooth in the next step; no serial number is needed. Leave the name blank to use its Bluetooth name, or enter a custom name. Existing custom names are preserved. Keep the Coway app closed during setup. Enrollment sets the pre-filter cleaning interval to 3 weeks; you can change it afterward.",
         "data": {
-          "serial": "Device serial number",
           "name": "Custom device name (optional)"
         }
       },
@@ -61,7 +60,6 @@
     "error": {
       "invalid_server": "Enter a reachable IPv4 address, three different ports (1024\u201365535), and an HTTPS provisioning URL.",
       "cannot_start_pairing": "The local service is unavailable or there are too many active setup attempts.",
-      "invalid_serial": "Enter the serial number from the fan\u2019s label (6\u201332 letters, digits, hyphens or underscores).",
       "not_connected": "Waiting for the fan to connect and confirm the 3-week pre-filter cleaning interval. Finish Bluetooth setup, wait a moment, then submit again."
     },
     "abort": {

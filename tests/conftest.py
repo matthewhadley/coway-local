@@ -10,7 +10,7 @@ import paho.mqtt.client as mqtt
 import pytest
 
 from custom_components.coway_local.broker import subscriptions, topic
-from custom_components.coway_local.service import LocalService, ServerConfig
+from custom_components.coway_local.service import LocalService, ServerConfig, local_serial
 
 
 def free_ports():
@@ -39,9 +39,10 @@ async def eventually(predicate, timeout=5):
 
 
 async def enroll(
-    service, serial="TEST000001", mac="001122334455", pairing=None, bluetooth_name="AP-TEST_334455"
+    service, serial=None, mac="001122334455", pairing=None, bluetooth_name="AP-TEST_334455"
 ):
-    pairing = pairing or service.begin_pairing(serial, "Test fan")
+    serial = serial or local_serial(mac)
+    pairing = pairing or service.begin_pairing("Test fan")
     context = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
     encoded = base64.urlsafe_b64encode(bluetooth_name.encode()).decode().rstrip("=")
     url = service.setup_bundle(pairing)["certSvrUrl"] + "/" + encoded
@@ -67,7 +68,7 @@ async def enroll(
 class Fan:
     """A real MQTT 3.1.1/TLS client with synthetic identities and firmware replies."""
 
-    def __init__(self, root, port, serial="TEST000001", certificate=None, respond=True):
+    def __init__(self, root, port, serial="LOCAL0001122334455", certificate=None, respond=True):
         self.serial = serial
         self.respond = respond
         self.prefilter_reply = None

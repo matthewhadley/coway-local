@@ -71,7 +71,7 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
             == 11
         )
         registry = er.async_get(hass)
-        last_seen_id = registry.async_get_entity_id("sensor", DOMAIN, "TEST000001_last_seen")
+        last_seen_id = registry.async_get_entity_id("sensor", DOMAIN, "LOCAL0001122334455_last_seen")
         assert last_seen_id is not None
         assert registry.async_get(last_seen_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
         assert hass.states.get(last_seen_id) is None
@@ -141,8 +141,9 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         options = await hass.config_entries.options.async_configure(
             options["flow_id"], {"next_step_id": "add_fan"}
         )
+        assert set(options["data_schema"].schema) == {"name"}
         options = await hass.config_entries.options.async_configure(
-            options["flow_id"], {"serial": "TEST000002", "name": "Another fan"}
+            options["flow_id"], {"name": "Another fan"}
         )
         assert options["step_id"] == "pairing"
         assert "#setup=" in options["description_placeholders"]["setup_url"]
@@ -156,16 +157,18 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
             naming_flow["flow_id"], {"next_step_id": "add_fan"}
         )
         naming_flow = await hass.config_entries.options.async_configure(
-            naming_flow["flow_id"], {"serial": "OTHER000003"}
+            naming_flow["flow_id"], {}
         )
         naming_pair = next(iter(service.pairings.values()))
-        await enroll(service, "OTHER000003", "001122334477", naming_pair, "AP-OTHER_334477")
+        assert naming_pair.serial is None
+        assert "serial" not in service.setup_bundle(naming_pair)
+        await enroll(service, "LOCAL0001122334477", "001122334477", naming_pair, "AP-OTHER_334477")
         await hass.async_block_till_done()
         devices = dr.async_get(hass)
-        named_device = devices.async_get_device_by_identifier((DOMAIN, "OTHER000003"), entry.entry_id)
+        named_device = devices.async_get_device_by_identifier((DOMAIN, "LOCAL0001122334477"), entry.entry_id)
         assert named_device.name == "AP-OTHER_334477"
         devices.async_update_device(named_device.id, name_by_user="Kitchen purifier")
-        await enroll(service, "OTHER000003", "001122334477", naming_pair, "New Bluetooth name")
+        await enroll(service, "LOCAL0001122334477", "001122334477", naming_pair, "New Bluetooth name")
         await hass.async_block_till_done()
         assert devices.async_get(named_device.id).name == "New Bluetooth name"
         assert devices.async_get(named_device.id).name_by_user == "Kitchen purifier"
@@ -175,7 +178,7 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
             options["flow_id"], {"next_step_id": "add_fan"}
         )
         options = await hass.config_entries.options.async_configure(
-            options["flow_id"], {"serial": client.serial, "name": "Test fan"}
+            options["flow_id"], {"name": "Test fan"}
         )
         pending = next(iter(service.pairings.values()))
         await enroll(service, pairing=pending)
@@ -203,10 +206,10 @@ async def test_ha_config_flow_entities_services_reload(tmp_path):
         assert hass.states.get("fan.test_fan").state == "unavailable"
         for entity_id in expected:
             assert hass.states.get(entity_id).state == "unavailable"
-        assert "TEST000001" in entry.runtime_data.devices
+        assert "LOCAL0001122334455" in entry.runtime_data.devices
         assert entry.runtime_data.states[client.serial].prefilter_cycle == 168
         assert devices.async_get(named_device.id).name_by_user == "Kitchen purifier"
-        assert entry.runtime_data.devices["OTHER000003"]["name"] == "New Bluetooth name"
+        assert entry.runtime_data.devices["LOCAL0001122334477"]["name"] == "New Bluetooth name"
         final_service = entry.runtime_data
         assert await hass.config_entries.async_unload(entry.entry_id)
         assert not final_service.started

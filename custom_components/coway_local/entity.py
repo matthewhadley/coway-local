@@ -46,7 +46,6 @@ class CowayEntity(Entity):
             name=record.get("name", "Coway"),
             manufacturer="Coway",
             model=record.get("model", MODEL),
-            serial_number=self.serial,
             sw_version=self.state_data.firmware if self.state_data else None,
         )
 

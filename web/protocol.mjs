@@ -79,6 +79,11 @@ export function randomLetters(length) {
   return Uint8Array.from(out);
 }
 export const canonicalMac = mac => mac.replaceAll(':','').toUpperCase();
+export function localSerial(mac) {
+  const value=canonicalMac(mac);
+  if (!/^[0-9A-F]{12}$/.test(value)) throw new Error('Invalid Wi-Fi MAC address');
+  return 'LOCAL0'+value;
+}
 export function p001(key) {
   if (bytes(key).length !== 20) throw new Error('Handshake key must be 20 bytes');
   return concat('P001', encodeProto({1:1,2:base64(key)}));

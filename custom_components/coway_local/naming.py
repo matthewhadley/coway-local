@@ -1,20 +1,8 @@
-"""Verified product labels and names supplied during local Bluetooth enrollment."""
+"""Names supplied during local Bluetooth enrollment."""
 
 import base64
 import binascii
 import re
-
-# Coway's published serial-code table: five model characters after the first three.
-# https://cowaymega.zendesk.com/hc/en-us/articles/4402478387603
-# These are naming entries, not a list of tested/supported device protocols.
-PRODUCT_NAMES = {
-    "02FJ3": "Coway Airmega IconS",
-    "02F9R": "Coway Airmega 250S",
-    "02DXB": "Coway Airmega 300S",
-    "02EUZ": "Coway Airmega 400S",
-    "02DNO": "Coway Airmega 400S",
-    "02F5O": "Coway Airmega AP-1512HHS",
-}
 
 
 def clean_name(value):
@@ -25,19 +13,10 @@ def clean_name(value):
     return value.strip()
 
 
-def catalog_name(serial):
-    # Do not guess from arbitrary substrings or short, nonstandard serial numbers.
-    if re.fullmatch(r"[A-Za-z0-9]{18}", serial):
-        return PRODUCT_NAMES.get(serial[3:8].upper())
-    return None
-
-
-def choose_name(serial, custom_name="", bluetooth_name=""):
+def choose_name(custom_name="", bluetooth_name=""):
     if custom_name:
         return custom_name, "custom"
-    if name := catalog_name(serial):
-        return name, "catalog"
-    # Before Bluetooth selection, an unknown product's display name is empty.
+    # The name is discovered in the browser after the setup link is created.
     return bluetooth_name, "bluetooth"
 
 

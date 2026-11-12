@@ -6,65 +6,50 @@ import ssl
 import aiohttp
 import pytest
 
-from custom_components.coway_local.naming import catalog_name
-
 from .conftest import enroll
 
-ICON_SERIAL = "00002FJ30000000001"
 
-
-def test_verified_catalog_uses_only_the_documented_serial_position():
-    assert catalog_name(ICON_SERIAL) == "Coway Airmega IconS"
-    assert catalog_name("00002F9R0000000001") == "Coway Airmega 250S"
-    for serial in ("TEST000001", "02FJ3", "02FJ300000000000000", "000XXXXX02FJ300001"):
-        assert catalog_name(serial) is None
-
-
-async def test_authenticated_enrollment_uses_catalog_then_bluetooth(service):
-    pairing = service.begin_pairing(ICON_SERIAL)
-    assert pairing.name == "Coway Airmega IconS"
-    assert not service.setup_bundle(pairing)["useBluetoothName"]
-    await enroll(service, serial=ICON_SERIAL, pairing=pairing, bluetooth_name="AP-1022K_334455")
-    record = service.devices[ICON_SERIAL]
-    assert record["name"] == "Coway Airmega IconS"
-    assert record["name_source"] == "catalog"
-    assert record["bluetooth_name"] == "AP-1022K_334455"
-    other = service.begin_pairing("OTHER00001")
-    assert service.setup_bundle(other)["useBluetoothName"]
-    await enroll(service, "OTHER00001", "001122334466", other, "Purifier · 空气")
-    assert service.devices[other.serial]["name"] == "Purifier · 空气"
-    assert service.devices[other.serial]["name_source"] == "bluetooth"
+async def test_authenticated_enrollment_uses_bluetooth_name(service):
+    pairing = service.begin_pairing()
+    assert pairing.serial is None and pairing.name == ""
+    assert service.setup_bundle(pairing)["useBluetoothName"]
+    assert "serial" not in service.setup_bundle(pairing)
+    await enroll(service, pairing=pairing, bluetooth_name="AP-1022K_334455")
+    serial = pairing.serial
+    record = service.devices[serial]
+    assert record["name"] == "AP-1022K_334455"
+    assert record["name_source"] == "bluetooth"
+    other = service.begin_pairing()
+    await enroll(service, mac="001122334466", pairing=other, bluetooth_name="Purifier · 空气")
     await service.stop()
     await service.start()
-    assert service.devices[ICON_SERIAL]["name"] == "Coway Airmega IconS"
+    assert service.devices[serial]["name"] == "AP-1022K_334455"
     assert service.devices[other.serial]["name"] == "Purifier · 空气"
 
 
 async def test_custom_names_and_bluetooth_names_survive_reenrollment(service):
-    pairing = service.begin_pairing("TEST000001")
+    pairing = service.begin_pairing()
     await enroll(service, pairing=pairing, bluetooth_name="AP-OTHER_334455")
-    pairing = service.begin_pairing("TEST000001")
+    pairing = service.begin_pairing()
     await enroll(service, pairing=pairing, bluetooth_name="Renamed purifier")
     assert service.devices[pairing.serial]["name"] == "Renamed purifier"
-    pairing = service.begin_pairing("TEST000001", "Bedroom")
+    pairing = service.begin_pairing("Bedroom")
     await enroll(service, pairing=pairing, bluetooth_name="AP-OTHER_334455")
-    pairing = service.begin_pairing("TEST000001", "")
-    assert pairing.name == "Bedroom"
-    assert not service.setup_bundle(pairing)["useBluetoothName"]
+    pairing = service.begin_pairing()
+    assert pairing.serial is None  # The identity is not known before Bluetooth.
     await enroll(service, pairing=pairing, bluetooth_name="Different Bluetooth label")
     assert service.devices[pairing.serial]["name"] == "Bedroom"
     assert service.devices[pairing.serial]["name_source"] == "custom"
-    # Explicit choices also outrank the catalog, including an intentional "Coway".
-    custom = service.begin_pairing(ICON_SERIAL, "Coway")
-    await enroll(service, ICON_SERIAL, "001122334466", custom, "AP-1022K_334466")
+    custom = service.begin_pairing("Coway")
+    await enroll(service, mac="001122334466", pairing=custom, bluetooth_name="AP-OTHER_334466")
     await service.stop()
     await service.start()
-    assert service.devices[ICON_SERIAL]["name"] == "Coway"
+    assert service.devices[custom.serial]["name"] == "Coway"
     assert service.devices[pairing.serial]["name"] == "Bedroom"
 
 
 async def test_name_transport_requires_valid_identity_and_rejects_malformed_labels(service):
-    pairing = service.begin_pairing("TEST000001")
+    pairing = service.begin_pairing()
     await enroll(service, pairing=pairing, bluetooth_name="AP-OTHER_334455")
     before = copy.deepcopy(service.devices)
     tls = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
@@ -86,4 +71,4 @@ async def test_name_transport_requires_valid_identity_and_rejects_malformed_labe
     assert service.devices == before
     for name in ("x" * 81, "Bad\nname"):
         with pytest.raises(ValueError):
-            service.begin_pairing("OTHER00002", name)
+            service.begin_pairing(name)

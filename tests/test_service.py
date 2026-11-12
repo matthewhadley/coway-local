@@ -9,9 +9,49 @@ import pytest
 
 from custom_components.coway_local.broker import topic
 from custom_components.coway_local.const import SETTINGS
-from custom_components.coway_local.service import LocalService, ServerConfig
+from custom_components.coway_local.service import LocalService, ServerConfig, local_serial
 
 from .conftest import Fan, enroll, eventually
+
+
+async def test_setup_token_is_bound_to_one_mac_on_first_enrollment(service):
+    pairing = service.begin_pairing()
+    bundle = service.setup_bundle(pairing)
+    assert bundle["v"] == 2 and "serial" not in bundle
+    assert pairing.serial is None and pairing.mac is None
+    tls = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
+    url = bundle["certSvrUrl"] + "/VGVzdCBmYW4"
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=tls)) as client:
+        for serial, mac in (("PRINTEDSERIAL00001", "001122334455"), ("../bad", "bad")):
+            async with client.post(
+                url, json={"certToken": pairing.token, "serial": serial, "macAddr": mac}
+            ) as response:
+                assert response.status == 403
+        assert pairing.serial is None and not service.devices
+
+        async def claim(mac):
+            async with client.post(
+                url, json={"certToken": pairing.token, "serial": local_serial(mac), "macAddr": mac}
+            ) as response:
+                return response.status
+
+        # Two devices racing to use one token must never both be enrolled.
+        statuses = await asyncio.gather(claim("001122334455"), claim("001122334466"))
+        assert sorted(statuses) == [200, 403]
+        assert len(service.devices) == 1
+        assert pairing.serial == local_serial(pairing.mac)
+        assert service.devices[pairing.serial]["mac"] == pairing.mac
+
+
+async def test_new_claim_for_same_fan_revokes_old_setup_capability(service):
+    first, _ = await enroll(service)
+    second = service.begin_pairing()
+    await enroll(service, pairing=second)
+    assert second.serial == first.serial == "LOCAL0001122334455"
+    assert first.token not in service.pairings
+    assert first.download not in service.downloads
+    assert second.token in service.pairings
+    assert len(service.devices) == 1
 
 
 async def test_enrollment_is_temporary_and_https_only(service):
@@ -76,9 +116,9 @@ async def test_fan_commands_reserved_events_and_acknowledgements(service, fan):
 
 
 async def test_identity_cannot_impersonate_or_evict_another_fan(service, fan):
-    await enroll(service, "TEST000002", "001122334466")
+    await enroll(service, "LOCAL0001122334466", "001122334466")
     impostor = await asyncio.to_thread(
-        Fan, service.root, service.config.mqtt_port, fan.serial, "TEST000002"
+        Fan, service.root, service.config.mqtt_port, fan.serial, "LOCAL0001122334466"
     )
     try:
         await asyncio.to_thread(impostor.open, False)
@@ -88,7 +128,9 @@ async def test_identity_cannot_impersonate_or_evict_another_fan(service, fan):
         await service.set(fan.serial, "speed", "2")
     finally:
         await asyncio.to_thread(impostor.close)
-    other = await asyncio.to_thread(Fan, service.root, service.config.mqtt_port, "TEST000002")
+    other = await asyncio.to_thread(
+        Fan, service.root, service.config.mqtt_port, "LOCAL0001122334466"
+    )
     try:
         await asyncio.to_thread(other.open)
         await eventually(lambda: bool(service.states[other.serial].settings))
@@ -121,7 +163,11 @@ async def test_wrong_direction_publications_are_dropped(service, fan):
             "attributes": {"A1010.0003": 3},
         }
     )
-    for denied in (topic("MControl", fan.serial), topic("BEvent", "TEST000002"), "$SYS/test"):
+    for denied in (
+        topic("MControl", fan.serial),
+        topic("BEvent", "LOCAL0001122334466"),
+        "$SYS/test",
+    ):
         await asyncio.to_thread(fan.publish, denied, forged)
     await asyncio.sleep(0.05)
     assert service.states[fan.serial].settings["0003"] == original

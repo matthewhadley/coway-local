@@ -36,7 +36,7 @@ Reserve the HA host address in your router before provisioning. Changing the add
 ## Add a fan
 
 1. Open **Coway Local → Configure → Add or provision a fan**.
-2. Enter the serial number from the fan’s product label. Leave **Custom device name** blank for automatic naming, or enter a name such as “Bedroom purifier.” BLE exposes a device name and MAC address, but not the serial number.
+2. Leave **Custom device name** blank to use the Bluetooth name, or enter a name such as “Bedroom purifier,” then select **Submit**. No printed serial number is needed.
 3. Open the generated **Bluetooth setup** link in a **new Chrome tab** on a nearby Mac or Android device. Keep the HA setup dialog open.
 4. Put the fan in Wi-Fi/Bluetooth setup mode and close the Coway app.
 5. Follow the four-step wizard: **Fan → Wi-Fi → Review → Connect**. Choose the fan, select a 2.4 GHz Wi-Fi network and enter its password, then review the fan, network, and local server before starting setup. Back lets you revise the details. The Bluetooth picker filters for Coway setup advertisements without an exact model-name restriction; the page checks the selected device's services and identity.
@@ -48,27 +48,30 @@ The setup link expires after 15 minutes and is revoked when canceled or complete
 
 ### Device names
 
-Names follow this order: an explicitly chosen name, a known friendly product name,
-then the selected device's advertised Bluetooth name. Unknown products are not
-assigned a hardcoded AP-1022K label. If the advertisement has no name, setup uses
-the module name returned by the BLE identity response when available.
+Names use an explicitly chosen custom name, otherwise the selected device's
+advertised Bluetooth name. If the advertisement has no name, setup uses the
+module name returned by the BLE identity response when available.
 
-The bundled lookup uses [Coway's published serial-code table](https://cowaymega.zendesk.com/hc/en-us/articles/4402478387603-Where-s-my-product-s-Serial-Code):
-characters 4–8 of an 18-character serial identify the product. The included entries
-cover IconS (`02FJ3`), 250S (`02F9R`), 300S (`02DXB`), 400S (`02EUZ` / `02DNO`) and
-AP-1512HHS (`02F5O`). Naming entries do not imply protocol compatibility; only
-AP-1022K has been tested. No catalog or cloud request is made at runtime.
+The browser derives an 18-character local protocol identifier as `LOCAL0` followed
+by the fan's 12 uppercase Wi-Fi MAC digits. This value is sent in the firmware's
+`serial` field and used for local certificates, MQTT topics, and HA entity IDs.
+It is not the manufacturer's printed serial number, and HA does not display it
+as one. The physical AP-1022K accepted this identity for enrollment and control.
 
 Names are saved locally. Re-enrollment with a blank custom-name field preserves an
 existing custom name. Names assigned through HA's device settings take precedence
 and are never overwritten. Existing entity IDs remain unchanged on re-enrollment.
 
 The browser carries the Bluetooth label in a base64url path
-on the fan's existing HTTPS enrollment request. The same token, serial and MAC
-checks apply before the server accepts the name. Wi-Fi credentials and tokens
+on the fan's existing HTTPS enrollment request. The server validates the token and verifies that the supplied local identifier
+exactly matches the Wi-Fi MAC. The first valid request binds the token to that
+fan; another MAC cannot claim it, including with concurrent requests. Wi-Fi credentials and tokens
 are not included in that path; short certificate/key download URLs are unchanged.
 Use the current integration and hosted setup page together.
 No migrations or compatibility paths for earlier development snapshots are included.
+Before re-enrolling a fan that used its printed serial in an earlier development
+version, remove that old device from Coway Local. New setup links use version 2;
+update both the integration and setup page, then create a fresh link.
 
 The browser displays the destination server before transmitting anything. Its setup token is in the URL fragment, which is not sent in the HTTPS request, and the page removes that fragment immediately. The Wi-Fi password is entered only in the page, stays in memory, and is cleared after completion or disconnection. HA does not receive or store the Wi-Fi password.
 

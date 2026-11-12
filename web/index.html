@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Coway · Local setup</title>
 <link rel="icon" href="./icon.png">
-<link rel="stylesheet" href="./style.css?v=0.2.5">
+<link rel="stylesheet" href="./style.css?v=0.3.0">
 </head>
 <body>
 <main>
@@ -25,7 +25,7 @@
       <p class="step-label">Step 1 of 4</p>
       <h2 id="title-fan" tabindex="-1">Connect to your fan</h2>
       <p>Keep this device near your fan. Bluetooth is only needed during setup.</p>
-      <div class="device-summary"><span class="summary-label">Setting up</span><strong id="target">Open a setup link from Home Assistant to begin.</strong><span id="serial" class="muted"></span></div>
+      <div class="device-summary"><span class="summary-label">Setting up</span><strong id="target">Open a setup link from Home Assistant to begin.</strong></div>
       <ol class="instructions"><li>Put the fan in Wi-Fi / Bluetooth setup mode.</li><li>Close the Coway app on nearby phones.</li><li>Choose your fan in Chrome’s Bluetooth picker.</li></ol>
       <p id="device" class="connection" hidden></p>
       <div data-status-slot></div>
@@ -85,8 +85,8 @@
     <details id="diagnostics" class="diagnostics" hidden><summary>Connection details</summary><pre id="log" aria-live="off"></pre></details>
   </div>
   <p id="expiry" class="expiry"></p>
-  <footer>Coway Local 0.2.5 · The browser is only needed for setup.</footer>
+  <footer>Coway Local 0.3.0 · The browser is only needed for setup.</footer>
 </main>
-<script type="module" src="./app.mjs?v=0.2.5"></script>
+<script type="module" src="./app.mjs?v=0.3.0"></script>
 </body>
 </html>

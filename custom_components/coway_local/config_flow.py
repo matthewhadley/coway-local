@@ -9,7 +9,7 @@ from homeassistant.components import network
 from homeassistant.core import callback
 
 from .const import DEFAULT_PORTS, DOMAIN, PROVISIONER_URL
-from .service import SERIAL, ServerConfig
+from .service import ServerConfig
 
 
 def server_schema(defaults):
@@ -76,22 +76,17 @@ class OptionsFlow(config_entries.OptionsFlow):
         service = self.config_entry.runtime_data
         errors = {}
         if user_input is not None:
-            serial = user_input["serial"].strip()
-            if not SERIAL.fullmatch(serial):
-                errors["serial"] = "invalid_serial"
+            try:
+                self.pairing = service.begin_pairing(user_input.get("name", ""))
+                self.pairing_service = service
+            except ValueError, ConnectionError:
+                errors["base"] = "cannot_start_pairing"
             else:
-                try:
-                    self.pairing = service.begin_pairing(serial, user_input.get("name", ""))
-                    self.pairing_service = service
-                except ValueError, ConnectionError:
-                    errors["base"] = "cannot_start_pairing"
-                else:
-                    return await self.async_step_pairing()
+                return await self.async_step_pairing()
         return self.async_show_form(
             step_id="add_fan",
             data_schema=vol.Schema(
                 {
-                    vol.Required("serial"): str,
                     vol.Optional("name", default=""): str,
                 }
             ),
@@ -112,7 +107,7 @@ class OptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema({}),
             description_placeholders={
                 "setup_url": service.setup_url(self.pairing),
-                "name": self.pairing.name,
+                "name": self.pairing.name or "your fan",
             },
             errors={"base": "not_connected"} if user_input is not None else {},
         )

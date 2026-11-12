@@ -2,15 +2,34 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {decodeSetup, readIdentity, requestFan, validateBundle, wifiConfig} from '../web/bootstrap.mjs';
-import {p001, p002, utf8, hex, fragments, Reassembler, decodeProto} from '../web/protocol.mjs';
+import {p001, p002, utf8, hex, fragments, Reassembler, decodeProto, localSerial} from '../web/protocol.mjs';
 
 const now = 1800000000000;
 const bundle = {
-  v: 1, model: 'AP-1022K', name: 'Test fan', serial: 'TEST000001',
+  v: 2, model: 'AP-1022K', name: 'Test fan',
   certToken: 'a'.repeat(32), expiresAt: now + 900000,
   caUrl: 'http://192.0.2.1:8080/ca.pem',
   certSvrUrl: 'https://192.0.2.1:9443/n', useBluetoothName: false,
 };
+test('device identity comes from Bluetooth without a serial in the HA setup link', async () => {
+  assert.equal(localSerial('aa:bb:cc:dd:ee:ff'), 'LOCAL0AABBCCDDEEFF');
+  assert.equal(localSerial('001122334455').length, 18);
+  assert.throws(() => localSerial('not-a-mac'));
+  const identity = readIdentity('Test fan', {2: utf8.encode('001122334455')});
+  const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
+  const config = wifiConfig({...bundle, serial: 'IGNORED'}, identity, network, 'testwifi', now);
+  assert.equal(config.serial, 'LOCAL0001122334455');
+  assert.equal(config.macAddr, '001122334455');
+  assert.equal(Object.hasOwn(validateBundle(bundle, now), 'serial'), false);
+  const random = utf8.encode('abcdefghijklmnopqrst');
+  const iv = utf8.encode('abcdefghijklmnop');
+  const message = await p002(config, random, iv);
+  const raw = Buffer.from(new TextDecoder().decode(message.slice(4)), 'base64');
+  const key = await crypto.subtle.importKey('raw', utf8.encode('abcdefghijklmnopqrst001122334455'), 'AES-CBC', false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({name: 'AES-CBC', iv: raw.subarray(0,16)}, key, raw.subarray(16));
+  const fields = decodeProto(new Uint8Array(plain));
+  assert.equal(new TextDecoder().decode(fields[14]), 'LOCAL0001122334455');
+});
 test('P001 and AES-CBC P002 match the independently generated protocol fixture', async () => {
   const fixture = JSON.parse(await readFile(new URL('protocol-fixture.json', import.meta.url)));
   assert.equal(hex(p001(utf8.encode(fixture.key))), fixture.p001);
@@ -29,7 +48,7 @@ test('fragment decoder supports UTF-8 without putting credentials in a query', (
 });
 test('expired and malformed destinations are rejected before Bluetooth writes', () => {
   for (const patch of [
-    {expiresAt: now}, {v: 2}, {serial: '../../secret'}, {certToken: 'bad'},
+    {expiresAt: now}, {v: 1}, {certToken: 'bad'},
     {model: null}, {model: ''}, {model: 'x'.repeat(81)},
     {certSvrUrl: 'http://192.0.2.1:9443/n'},
     {certSvrUrl: 'https://192.0.2.2:9443/n'},
@@ -114,7 +133,7 @@ test('different advertised names and model labels can reach Wi-Fi configuration'
     const config = wifiConfig(decoded, identity, network, 'testwifi', now);
     assert.equal(identity.name, name || 'COWAY334455');
     assert.equal(config.macAddr, '001122334455');
-    assert.equal(config.serial, bundle.serial);
+    assert.equal(config.serial, 'LOCAL0001122334455');
     assert.equal(config.pwd, 'testwifi');
   }
   assert.equal(readIdentity(undefined, {2: utf8.encode('001122334455')}).name, 'Unnamed device');

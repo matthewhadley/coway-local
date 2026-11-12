@@ -70,7 +70,7 @@ Object.defineProperty(navigator,'bluetooth',{configurable:true,value:{requestDev
   fan=new Fan();return fan;
 }}});
 document.getElementById('drop-link').addEventListener('click',()=>fan?.gatt.disconnect());
-const bundle={v:1,model:'AP-1022K',name:'Coway Airmega IconS',serial:'00002FJ30000000001',useBluetoothName:false,
+const bundle={v:2,model:'AP-1022K',name:'',useBluetoothName:true,
   caUrl:'http://192.0.2.1:8080/ca.pem',certSvrUrl:'https://192.0.2.1:9443/n',certToken:'a'.repeat(32),
   expiresAt:Date.now()+(new URLSearchParams(location.search).has('expired')?-1000:900000)};
 history.replaceState(null,'',location.pathname+location.search+'#setup='+btoa(JSON.stringify(bundle)).replaceAll('+','-').replaceAll('/','_').replaceAll('=',''));

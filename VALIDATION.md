@@ -1,6 +1,6 @@
-# Validation for 0.2.5
+# Validation for 0.3.0
 
-Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 23 Python tests and 12 JavaScript tests.
+Validation uses Home Assistant **2026.10.2**, Python **3.14.6**, and aMQTT **0.12.1** on macOS and Linux. The suite contains 24 Python tests and 13 JavaScript tests.
 
 - Dependency resolution with HA’s pinned dependencies succeeds.
 - Real HA config/options flows, eleven enabled entities plus the disabled-by-default Last seen registry entry, fan and select service calls, entry reload and unload are exercised in isolated temporary storage.
@@ -110,3 +110,32 @@ published with `web/`. These are simulated UI checks, not a new physical fan
 enrollment. The enrollment format and server behavior are unchanged.
 
 Coverage is limited to this AP-1022K and the firmware listed in the README. The v0.2.0 pre-filter cycle initially showed unknown; v0.2.1 establishes a known value during new enrollment and persists confirmed choices. A read-only interval query remains unidentified. Other models, long-term operation, and HA Container networking have not been tested on physical hardware.
+
+
+## v0.3.0 enrollment without printed serial numbers
+
+The HA options flow accepts only an optional custom name. Its version-2 setup
+bundle contains no device serial. The browser reads the Wi-Fi MAC over BLE and
+sends `LOCAL0` plus its 12 uppercase hexadecimal digits as the 18-character
+protocol identity. The server independently checks that derivation and binds
+the one-time token to the first device that enrolls. Tests cover mismatched
+identities, simultaneous claims by different MACs, replacing an earlier setup
+capability for the same fan, name preservation, and the real HA options flow.
+The AES-CBC test decrypts the resulting P002 payload and checks the generated
+identity in protobuf field 14. All 24 Python and 13 JavaScript tests pass.
+
+On the physical AP-1022K, the generated identity appeared in the HTTPS enrollment
+request, MQTT client ID, MQTT topics, and message `prodId` fields. BLE reported
+72, 71, 10, 20, 40, 50, 61. A correlated status query succeeded; lighting changed
+and was restored to its original setting. An initial rapid command sequence
+hit a timeout; after restarting the laptop test service and spacing the manual
+checks, the restoration and fresh queries succeeded. The fan also reconnected
+after another service restart with the same generated identity and credentials.
+No fan power-cycle persistence test was performed. The fan remains on the laptop
+test service, rather than being re-enrolled into HA as part of this release test.
+
+No printed-serial naming lookup or development-data migration remains in the
+new enrollment path. Default names come from Bluetooth; custom names persist.
+Earlier printed-serial device entries must be removed before re-enrolling the
+same hardware with the new flow. Integration and setup page must be updated
+together; old setup links are rejected before Bluetooth writes.
