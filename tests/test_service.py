@@ -17,7 +17,6 @@ from .conftest import Fan, enroll, eventually
 async def test_setup_token_is_bound_to_one_mac_on_first_enrollment(service):
     pairing = service.begin_pairing()
     bundle = service.setup_bundle(pairing)
-    assert bundle["v"] == 2 and "serial" not in bundle
     assert pairing.serial is None and pairing.mac is None
     tls = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
     url = bundle["certSvrUrl"] + "/VGVzdCBmYW4"

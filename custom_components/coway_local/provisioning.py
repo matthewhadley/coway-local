@@ -49,7 +49,9 @@ class ProvisioningReturnView(HomeAssistantView):
         try:
             flow = hass.config_entries.options.async_get(flow_id)
         except UnknownFlow as error:
-            raise web.HTTPGone(text="This setup ended. Start Add fan again in Home Assistant.") from error
+            raise web.HTTPGone(
+                text="This setup ended. Start Add fan again in Home Assistant."
+            ) from error
         context = flow["context"]
         entry = hass.config_entries.async_get_entry(flow["handler"])
         expected = context.get(STATE_KEY)

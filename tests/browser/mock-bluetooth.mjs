@@ -70,7 +70,7 @@ Object.defineProperty(navigator,'bluetooth',{configurable:true,value:{requestDev
   fan=new Fan();return fan;
 }}});
 document.getElementById('drop-link').addEventListener('click',()=>fan?.gatt.disconnect());
-const bundle={v:2,model:'AP-1022K',name:'',useBluetoothName:true,
+const bundle={v:1,model:'AP-1022K',
   returnUrl:location.origin+'/api/coway_local/provisioning/return?flow_id='+'b'.repeat(32)+'&state='+'c'.repeat(32),
   caUrl:'http://192.0.2.1:8080/ca.pem',certSvrUrl:'https://192.0.2.1:9443/n',certToken:'a'.repeat(32),
   expiresAt:Date.now()+(new URLSearchParams(location.search).has('expired')?-1000:900000)};

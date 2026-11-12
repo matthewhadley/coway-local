@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {decodeSetup, readIdentity, requestFan, validateBundle, wifiConfig} from '../web/bootstrap.mjs';
-import {p001, p002, utf8, hex, fragments, Reassembler, decodeProto, localSerial} from '../web/protocol.mjs';
+import {decodeSetup, readIdentity, requestFan, validateBundle, wifiConfig} from '../web/v1/bootstrap.mjs';
+import {p001, p002, utf8, hex, fragments, Reassembler, decodeProto, localSerial} from '../web/v1/protocol.mjs';
 
 const now = 1800000000000;
 const bundle = {
-  v: 2, model: 'AP-1022K', name: 'Test fan',
+  v: 1, model: 'AP-1022K',
   certToken: 'a'.repeat(32), expiresAt: now + 900000,
   caUrl: 'http://192.0.2.1:8080/ca.pem',
-  certSvrUrl: 'https://192.0.2.1:9443/n', useBluetoothName: false,
+  certSvrUrl: 'https://192.0.2.1:9443/n',
   returnUrl: 'http://homeassistant.local:8123/api/coway_local/provisioning/return?flow_id=' + 'b'.repeat(32) + '&state=' + 'c'.repeat(32),
 };
 test('return navigation allows HTTP or HTTPS HA, with a separate one-use token', () => {
@@ -31,16 +31,15 @@ test('return navigation allows HTTP or HTTPS HA, with a separate one-use token',
     {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4}, 'testwifi', now);
   assert.equal(Object.hasOwn(config, 'returnUrl'), false);
 });
-test('device identity comes from Bluetooth without a serial in the HA setup link', async () => {
+test('device identity is derived from the Bluetooth MAC', async () => {
   assert.equal(localSerial('aa:bb:cc:dd:ee:ff'), 'LOCAL0AABBCCDDEEFF');
   assert.equal(localSerial('001122334455').length, 18);
   assert.throws(() => localSerial('not-a-mac'));
   const identity = readIdentity('Test fan', {2: utf8.encode('001122334455')});
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
-  const config = wifiConfig({...bundle, serial: 'IGNORED'}, identity, network, 'testwifi', now);
+  const config = wifiConfig(bundle, identity, network, 'testwifi', now);
   assert.equal(config.serial, 'LOCAL0001122334455');
   assert.equal(config.macAddr, '001122334455');
-  assert.equal(Object.hasOwn(validateBundle(bundle, now), 'serial'), false);
   const random = utf8.encode('abcdefghijklmnopqrst');
   const iv = utf8.encode('abcdefghijklmnop');
   const message = await p002(config, random, iv);
@@ -62,13 +61,13 @@ test('P001 and AES-CBC P002 match the independently generated protocol fixture',
   assert.equal(hex(assembler.feed(packets.at(-1))), fixture.p002);
 });
 test('fragment decoder supports UTF-8 without putting credentials in a query', () => {
-  const input = {...bundle, name: 'Bedroom · 空气'};
+  const input = {...bundle, model: 'Modèle · 空气'};
   const encoded = Buffer.from(JSON.stringify(input)).toString('base64url');
   assert.deepEqual(decodeSetup('#setup=' + encoded, now), input);
 });
 test('expired and malformed destinations are rejected before Bluetooth writes', () => {
   for (const patch of [
-    {expiresAt: now}, {v: 1}, {certToken: 'bad'},
+    {expiresAt: now}, {v: 2}, {v: undefined}, {certToken: 'bad'},
     {model: null}, {model: ''}, {model: 'x'.repeat(81)},
     {certSvrUrl: 'http://192.0.2.1:9443/n'},
     {certSvrUrl: 'https://192.0.2.2:9443/n'},
@@ -165,9 +164,7 @@ test('matching advertised names do not bypass malformed identity responses', () 
   ]) assert.throws(() => readIdentity('AP-1022K_334455', fields));
 });
 test('enrollment always carries the selected Bluetooth name in the fan enrollment URL', () => {
-  const input = {...bundle, useBluetoothName: true};
-  const decoded = decodeSetup('#setup=' + Buffer.from(JSON.stringify(input)).toString('base64url'), now);
-  assert.deepEqual(decoded, input);
+  const decoded = validateBundle(bundle, now);
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
   for (const name of ['AP-OTHER_334455', 'Purifier · 空气', 'name / ? # &']) {
     const identity = readIdentity(name, {2: utf8.encode('001122334455')});
@@ -182,9 +179,7 @@ test('enrollment always carries the selected Bluetooth name in the fan enrollmen
     assert.ok(!config.certSvrUrl.includes(config.certToken));
   }
 });
-test('invalid naming options and unsafe or oversized Bluetooth labels stop provisioning', () => {
-  for (const value of ['true', 1, null, undefined])
-    assert.throws(() => validateBundle({...bundle, useBluetoothName: value}, now));
+test('unsafe or oversized Bluetooth labels stop provisioning', () => {
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
   for (const name of ['', ' ', 'x'.repeat(81), 'Bad\nname', 'Bad\u007fname'])
     assert.throws(() => wifiConfig(bundle, {mac: '001122334455', name}, network, 'testwifi', now));

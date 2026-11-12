@@ -2,6 +2,7 @@
 
 Run: python tests/browser/serve.py, then open http://localhost:18765/preview.
 The test adapter is never included in the published web/ directory.
+It previews the newest setup-link format.
 """
 
 from functools import partial
@@ -10,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
+PAGE = ROOT / "web" / "v1"
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -25,11 +27,16 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path in ("/preview", "/mock-bluetooth.mjs"):
             if path == "/preview":
-                content = (ROOT / "web/index.html").read_text().replace(
-                    '<script type="module" src="./app.mjs',
-                    '<script type="module" src="./mock-bluetooth.mjs"></script>\n'
-                    '<script type="module" src="./app.mjs',
-                ).encode()
+                content = (
+                    (PAGE / "index.html")
+                    .read_text()
+                    .replace(
+                        '<script type="module" src="./app.mjs',
+                        '<script type="module" src="./mock-bluetooth.mjs"></script>\n'
+                        '<script type="module" src="./app.mjs',
+                    )
+                    .encode()
+                )
                 kind = "text/html"
             else:
                 content = (ROOT / "tests/browser/mock-bluetooth.mjs").read_bytes()
@@ -44,6 +51,6 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", 18765), partial(Handler, directory=ROOT / "web"))
+    server = ThreadingHTTPServer(("127.0.0.1", 18765), partial(Handler, directory=PAGE))
     print("Wizard preview: http://localhost:18765/preview", flush=True)
     server.serve_forever()

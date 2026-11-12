@@ -10,26 +10,41 @@ import probatio as vol
 from homeassistant import config_entries
 from homeassistant.components import network
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.network import NoURLAvailableError
 
 from .const import DEFAULT_PORTS, DOMAIN, PROVISIONER_URL
 from .provisioning import EXPIRES_KEY, RETURN_PATH, STATE_KEY, frontend_url
 from .service import ServerConfig
 
+ADVANCED = "advanced"
+
 
 def server_schema(defaults):
-    fields = {
-        vol.Required("host", default=defaults.get("host", "")): str,
+    """Show the address; keep settings that rarely change in a collapsed section."""
+    advanced = {
         vol.Optional(
             "provisioner_url", default=defaults.get("provisioner_url", PROVISIONER_URL)
         ): str,
     }
     for key, port in DEFAULT_PORTS.items():
-        fields[vol.Required(key, default=defaults.get(key, port))] = vol.All(
+        advanced[vol.Required(key, default=defaults.get(key, port))] = vol.All(
             vol.Coerce(int), vol.Range(min=1024, max=65535)
         )
-    fields[vol.Optional("bind_host", default=defaults.get("bind_host", "0.0.0.0"))] = str
-    return vol.Schema(fields)
+    advanced[vol.Optional("bind_host", default=defaults.get("bind_host", "0.0.0.0"))] = str
+
+    return vol.Schema(
+        {
+            vol.Required("host", default=defaults.get("host", "")): str,
+            vol.Required(ADVANCED): section(vol.Schema(advanced), {"collapsed": True}),
+        }
+    )
+
+
+def flatten(user_input):
+    values = dict(user_input)
+    values.update(values.pop(ADVANCED, {}))
+    return values
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -39,10 +54,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
         errors = {}
-        defaults = user_input or {}
+        defaults = {}
         if user_input is not None:
+            defaults = flatten(user_input)
             try:
-                config = ServerConfig(**user_input).validate()
+                config = ServerConfig(**defaults).validate()
             except ValueError, TypeError:
                 errors["base"] = "invalid_server"
             else:
@@ -140,10 +156,10 @@ class OptionsFlow(config_entries.OptionsFlow):
         errors = {}
         if user_input is not None:
             try:
-                config = ServerConfig(**user_input).validate()
+                config = ServerConfig(**flatten(user_input)).validate()
             except ValueError, TypeError:
                 errors["base"] = "invalid_server"
-                defaults = user_input
+                defaults = flatten(user_input)
             else:
                 return self.async_create_entry(title="", data=asdict(config))
         return self.async_show_form(

@@ -1,5 +1,8 @@
 // Enrollment data stays in memory. No HA access token or Wi-Fi password belongs here.
-import { canonicalMac, localSerial, text, uuid } from './protocol.mjs?v=0.4.2';
+import { canonicalMac, localSerial, text, uuid } from './protocol.mjs?v=0.5.0';
+
+// Setup-link format served by this directory (v1/). Must match SETUP_FORMAT in const.py.
+export const FORMAT = 1;
 
 export function requestFan(bluetooth) {
   // Keep this synchronous so Chrome's chooser retains the click's user activation.
@@ -43,13 +46,11 @@ export function readIdentity(advertisedName, fields) {
 }
 
 export function validateBundle(value, now = Date.now()) {
-  if (value?.v !== 2) throw new Error('Update Coway Local in Home Assistant and create a new setup link.');
+  if (value?.v !== FORMAT) throw new Error('This setup page does not match your Coway Local version. Create a new setup link in Home Assistant.');
   if (!value || typeof value.model !== 'string'
     || !value.model.trim() || value.model.length > 80
     || !/^[A-Za-z0-9_-]{32}$/.test(value.certToken ?? '')
-    || typeof value.name !== 'string' || value.name.length > 80
-    || !Number.isSafeInteger(value.expiresAt)
-    || typeof value.useBluetoothName !== 'boolean')
+    || !Number.isSafeInteger(value.expiresAt))
     throw new Error('Invalid setup link. Create a new one in Home Assistant.');
   if (value.expiresAt <= now) throw new Error('This setup link expired. Create a new one in Home Assistant.');
   const ca = new URL(value.caUrl), cert = new URL(value.certSvrUrl);
@@ -68,11 +69,10 @@ export function validateBundle(value, now = Date.now()) {
     || !/^[A-Za-z0-9_-]{32}$/.test(back.searchParams.get('state') ?? ''))
     throw new Error('Invalid Home Assistant return address. Create a new setup link.');
   return Object.freeze({
-    v: 2, model: value.model, name: value.name,
+    v: FORMAT, model: value.model,
     certToken: value.certToken, expiresAt: value.expiresAt,
     caUrl: ca.href, certSvrUrl: cert.href,
     returnUrl: back.href,
-    useBluetoothName: value.useBluetoothName,
   });
 }
 

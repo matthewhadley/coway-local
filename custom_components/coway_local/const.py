@@ -4,6 +4,10 @@ DOMAIN = "coway_local"
 MODEL = "AP-1022K"
 SERVICE_CODE = "002AIR007"
 PROVISIONER_URL = "https://scottjg.github.io/coway-local/"
+# Setup-link format. The page for format N is published under <PROVISIONER_URL>/vN/,
+# so each installed release opens a page that understands its links.
+# Bump it, and add web/vN/, whenever the link changes incompatibly.
+SETUP_FORMAT = 1
 DEFAULT_PORTS = {"http_port": 8080, "https_port": 9443, "mqtt_port": 9883}
 PAIRING_SECONDS = 900
 DEFAULT_PREFILTER_CYCLE = "3 weeks"

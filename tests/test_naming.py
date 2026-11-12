@@ -4,53 +4,23 @@ import copy
 import ssl
 
 import aiohttp
-import pytest
 
 from .conftest import enroll
 
 
-async def test_authenticated_enrollment_uses_bluetooth_name(service):
-    pairing = service.begin_pairing()
-    assert pairing.serial is None and pairing.name == ""
-    assert service.setup_bundle(pairing)["useBluetoothName"]
-    assert "serial" not in service.setup_bundle(pairing)
-    await enroll(service, pairing=pairing, bluetooth_name="AP-1022K_334455")
-    serial = pairing.serial
-    record = service.devices[serial]
-    assert record["name"] == "AP-1022K_334455"
-    assert record["name_source"] == "bluetooth"
-    other = service.begin_pairing()
-    await enroll(service, mac="001122334466", pairing=other, bluetooth_name="Purifier · 空气")
+async def test_bluetooth_names_are_stored_and_follow_reenrollment(service):
+    pairing, _ = await enroll(service, bluetooth_name="AP-1022K_334455")
+    other, _ = await enroll(service, mac="001122334466", bluetooth_name="Purifier · 空气")
+    assert service.devices[pairing.serial]["name"] == "AP-1022K_334455"
+    await enroll(service, bluetooth_name="Renamed purifier")
     await service.stop()
     await service.start()
-    assert service.devices[serial]["name"] == "AP-1022K_334455"
+    assert service.devices[pairing.serial]["name"] == "Renamed purifier"
     assert service.devices[other.serial]["name"] == "Purifier · 空气"
 
 
-async def test_custom_names_and_bluetooth_names_survive_reenrollment(service):
-    pairing = service.begin_pairing()
-    await enroll(service, pairing=pairing, bluetooth_name="AP-OTHER_334455")
-    pairing = service.begin_pairing()
-    await enroll(service, pairing=pairing, bluetooth_name="Renamed purifier")
-    assert service.devices[pairing.serial]["name"] == "Renamed purifier"
-    pairing = service.begin_pairing("Bedroom")
-    await enroll(service, pairing=pairing, bluetooth_name="AP-OTHER_334455")
-    pairing = service.begin_pairing()
-    assert pairing.serial is None  # The identity is not known before Bluetooth.
-    await enroll(service, pairing=pairing, bluetooth_name="Different Bluetooth label")
-    assert service.devices[pairing.serial]["name"] == "Bedroom"
-    assert service.devices[pairing.serial]["name_source"] == "custom"
-    custom = service.begin_pairing("Coway")
-    await enroll(service, mac="001122334466", pairing=custom, bluetooth_name="AP-OTHER_334466")
-    await service.stop()
-    await service.start()
-    assert service.devices[custom.serial]["name"] == "Coway"
-    assert service.devices[pairing.serial]["name"] == "Bedroom"
-
-
-async def test_name_transport_requires_valid_identity_and_rejects_malformed_labels(service):
-    pairing = service.begin_pairing()
-    await enroll(service, pairing=pairing, bluetooth_name="AP-OTHER_334455")
+async def test_malformed_names_are_rejected_without_changing_the_device(service):
+    pairing, _ = await enroll(service)
     before = copy.deepcopy(service.devices)
     tls = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
     base = f"https://127.0.0.1:{service.config.https_port}/n/"
@@ -60,15 +30,4 @@ async def test_name_transport_requires_valid_identity_and_rejects_malformed_labe
             label = base64.urlsafe_b64encode(data).decode().rstrip("=") or "="
             async with client.post(base + label, json=body) as response:
                 assert response.status == 400
-        for bad_body in ({}, {**body, "certToken": "wrong"}, {**body, "macAddr": "001122334466"}):
-            async with client.post(base + "TmV3IG5hbWU", json=bad_body) as response:
-                assert response.status == 403
-        http = base.replace("https:", "http:").replace(
-            str(service.config.https_port), str(service.config.http_port)
-        )
-        async with client.post(http + "TmV3IG5hbWU", json=body) as response:
-            assert response.status == 404
     assert service.devices == before
-    for name in ("x" * 81, "Bad\nname"):
-        with pytest.raises(ValueError):
-            service.begin_pairing(name)

@@ -1,5 +1,7 @@
 name: Provisioning page
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 permissions:
   contents: read
@@ -8,6 +10,9 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: false
+env:
+  # Releases up to 0.4.2 open the site root, so it keeps serving their page.
+  LEGACY_ROOT: v0.4.2
 jobs:
   deploy:
     environment:
@@ -15,13 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
           package-manager-cache: false
       - run: node --test tests/web.test.mjs
+      - name: Assemble the site
+        run: |
+          mkdir site
+          git archive "$LEGACY_ROOT" web | tar -x --strip-components=1 -C site
+          cp -R web/. site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: web
+          path: site
       - uses: actions/deploy-pages@v4

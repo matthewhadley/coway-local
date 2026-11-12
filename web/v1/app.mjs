@@ -1,5 +1,5 @@
-import { bytes, uuid, p001, p002, randomLetters, fragments, Reassembler, decodeProto, parseScan, STATUS, FAILURE_CODES } from './protocol.mjs?v=0.4.2';
-import { decodeSetup, readIdentity, requestFan, wifiConfig } from './bootstrap.mjs?v=0.4.2';
+import { bytes, uuid, p001, p002, randomLetters, fragments, Reassembler, decodeProto, parseScan, STATUS, FAILURE_CODES } from './protocol.mjs?v=0.5.0';
+import { decodeSetup, readIdentity, requestFan, wifiConfig } from './bootstrap.mjs?v=0.5.0';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -232,7 +232,7 @@ $('connect').addEventListener('click', async () => {
     const info = decodeProto(await channels.get(INFO).receive(12000));
     if (attempt !== generation) return;
     identity = readIdentity(selected.name, info); phase = 'connected';
-    if (saved.useBluetoothName) $('target').textContent = identity.name;
+    $('target').textContent = identity.name;
     $('device').textContent = `${identity.name} · Bluetooth connected`; $('device').hidden = false;
     log('Device identity read; notification channels ready.');
     showStage('wifi'); networkFields();
@@ -259,7 +259,7 @@ $('continue-wifi').addEventListener('click', () => {
 $('scan').addEventListener('click', scanNetworks);
 $('disconnect').addEventListener('click', () => {
   releaseConnection(); phase = 'idle';
-  if (saved?.useBluetoothName) $('target').textContent = 'Your Coway fan';
+  $('target').textContent = 'Your Coway fan';
   showStage('fan');
 });
 $('back-fan').addEventListener('click', () => showStage('fan'));
@@ -275,7 +275,7 @@ $('wifi-form').addEventListener('submit', event => {
   if (busy || !ensureLink()) return;
   try {
     wifiConfig(saved, identity, selectedNetwork(), $('password').value);
-    $('review-fan').textContent = saved.useBluetoothName ? identity.name : saved.name;
+    $('review-fan').textContent = identity.name;
     $('review-network').textContent = selectedNetwork().ssid;
     showStage('review');
   } catch (error) {
@@ -352,7 +352,7 @@ function initialize() {
   $('environment').textContent = 'Bluetooth ready';
   saved = decodeSetup(setupFragment); setupFragment = '';
   $('server').textContent = new URL(saved.certSvrUrl).host;
-  $('target').textContent = saved.useBluetoothName ? 'Your Coway fan' : saved.name;
+  $('target').textContent = 'Your Coway fan';
   $('expiry').textContent = 'Setup link expires at ' + new Date(saved.expiresAt).toLocaleTimeString() + '.';
   showStage('fan', false);
   expiryTimer = setTimeout(() => {

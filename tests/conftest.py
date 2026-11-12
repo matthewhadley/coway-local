@@ -38,11 +38,9 @@ async def eventually(predicate, timeout=5):
             await asyncio.sleep(0.02)
 
 
-async def enroll(
-    service, serial=None, mac="001122334455", pairing=None, bluetooth_name="AP-TEST_334455"
-):
+async def enroll(service, serial=None, mac="001122334455", pairing=None, bluetooth_name="Test fan"):
     serial = serial or local_serial(mac)
-    pairing = pairing or service.begin_pairing("Test fan")
+    pairing = pairing or service.begin_pairing()
     context = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
     encoded = base64.urlsafe_b64encode(bluetooth_name.encode()).decode().rstrip("=")
     url = service.setup_bundle(pairing)["certSvrUrl"] + "/" + encoded
@@ -139,7 +137,8 @@ class Fan:
             else {
                 "A1050.0001": (
                     body["attributes"]["A1051.0001"]
-                    if self.prefilter_reply is None else self.prefilter_reply
+                    if self.prefilter_reply is None
+                    else self.prefilter_reply
                 )
             }
         )

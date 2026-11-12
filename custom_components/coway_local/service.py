@@ -18,7 +18,7 @@ from urllib.parse import urlsplit, urlunsplit
 from aiohttp import web
 
 from . import pki
-from .broker import CowayBroker
+from .broker import AMQTT_VERSION, CowayBroker
 from .const import (
     DEFAULT_PREFILTER_CYCLE,
     MODEL,
@@ -27,8 +27,9 @@ from .const import (
     REPLIES,
     SERVICE_CODE,
     SETTINGS,
+    SETUP_FORMAT,
 )
-from .naming import choose_name, clean_name, decode_bluetooth_name
+from .naming import decode_bluetooth_name
 from .telemetry import decode_report
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,10 +76,7 @@ class ServerConfig:
 
 @dataclass
 class Pairing:
-    name: str
     serial: str | None = None
-    custom_name: str = ""
-    name_source: str = "bluetooth"
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     expires: float = field(default_factory=lambda: time.time() + PAIRING_SECONDS)
     complete: bool = False
@@ -96,7 +94,6 @@ class DeviceState:
     telemetry: dict[str, int | None] = field(default_factory=dict)
     prefilter_cycle: int | None = None
     firmware: str | None = None
-    raw: dict = field(default_factory=dict)
 
 
 class LocalService:
@@ -227,17 +224,13 @@ class LocalService:
             {"version": 1, "devices": dict(self.devices)},
         )
 
-    def begin_pairing(self, name: str = "") -> Pairing:
+    def begin_pairing(self) -> Pairing:
         if not self.started:
             raise ConnectionError("Local service is not running")
-        custom_name = clean_name(name)
-        display_name, name_source = choose_name(custom_name)
         self.expire_pairings()
         if len(self.pairings) >= 8:
             raise ValueError("Finish or cancel an existing setup first")
-        pairing = Pairing(
-            name=display_name, custom_name=custom_name, name_source=name_source
-        )
+        pairing = Pairing()
         self.pairings[pairing.token] = pairing
         return pairing
 
@@ -255,14 +248,12 @@ class LocalService:
     def setup_bundle(self, pairing):
         cfg = self.config
         return {
-            "v": 2,
-            "name": pairing.name,
+            "v": SETUP_FORMAT,
             "model": MODEL,
             "caUrl": f"http://{cfg.host}:{cfg.http_port}/ca.pem",
             "certSvrUrl": f"https://{cfg.host}:{cfg.https_port}/n",
             "certToken": pairing.token,
             "expiresAt": int(pairing.expires * 1000),
-            "useBluetoothName": pairing.name_source == "bluetooth",
         }
 
     def setup_url(self, pairing, return_url):
@@ -270,11 +261,17 @@ class LocalService:
         payload = json.dumps(bundle, separators=(",", ":")).encode()
         fragment = base64.urlsafe_b64encode(payload).decode().rstrip("=")
         url = urlsplit(self.config.provisioner_url)
-        return urlunsplit((url.scheme, url.netloc, url.path, "", f"setup={fragment}"))
+        path = f"{url.path.rstrip('/')}/v{SETUP_FORMAT}/"
+        return urlunsplit((url.scheme, url.netloc, path, "", f"setup={fragment}"))
 
     @staticmethod
     def response(body, status=200):
         return web.json_response(body, status=status, headers={"Cache-Control": "no-store"})
+
+    def rejected(self, status, message):
+        return self.response(
+            {"header": {"success": False, "result": "F5002", "message": message}}, status
+        )
 
     async def ca_download(self, request):
         return web.Response(
@@ -286,58 +283,37 @@ class LocalService:
     async def enroll(self, request):
         try:
             body = await request.json()
-            if not isinstance(body, dict):
+            token = body["certToken"]
+            serial = body["serial"]
+            mac = body["macAddr"].replace(":", "").upper()
+            pairing = self.pairings[token]
+            if serial != local_serial(mac):
                 raise ValueError
-            token = body.get("certToken")
-            if not isinstance(token, str):
-                raise ValueError
-            pairing = self.pairings.get(token)
-            serial = body.get("serial")
-            mac = body.get("macAddr", "").replace(":", "").upper()
-            if (
-                pairing is None
-                or pairing.complete
-                or pairing.connected
-                or time.time() > pairing.expires
-                or serial != local_serial(mac)
-            ):
-                raise ValueError
-        except ValueError, TypeError, AttributeError, UnicodeError:
-            return self.response(
-                {"header": {"success": False, "result": "F5002", "message": "INVALID_LOCAL_TOKEN"}},
-                403,
-            )
+        except ValueError, TypeError, KeyError, AttributeError, UnicodeError:
+            return self.rejected(403, "INVALID_LOCAL_TOKEN")
         async with self.enrollment_lock:
+            # The token is claimed under this lock, so concurrent requests
+            # cannot use it to enroll different devices.
             if (
-                pairing.complete
+                self.pairings.get(token) is not pairing
                 or pairing.connected
                 or time.time() > pairing.expires
-                or self.pairings.get(token) is not pairing
             ):
-                return self.response({"error": "Setup finished or canceled"}, 403)
+                return self.rejected(403, "INVALID_LOCAL_TOKEN")
             old = self.devices.get(serial)
-            if (
-                (old and old["mac"] != mac)
-                or (pairing.mac and pairing.mac != mac)
-                or (pairing.serial and pairing.serial != serial)
-            ):
-                return self.response({"error": "Device identity mismatch"}, 403)
+            if (old and old["mac"] != mac) or (pairing.mac and pairing.mac != mac):
+                return self.rejected(403, "DEVICE_IDENTITY_MISMATCH")
             if any(d["mac"] == mac and key != serial for key, d in self.devices.items()):
-                return self.response({"error": "Device identity already enrolled"}, 409)
+                return self.rejected(409, "DEVICE_ALREADY_ENROLLED")
             try:
-                bluetooth_name = decode_bluetooth_name(request.match_info["bluetooth_name"])
+                name = decode_bluetooth_name(request.match_info["bluetooth_name"])
             except ValueError:
-                return self.response({"error": "Invalid Bluetooth name"}, 400)
-            custom_name = pairing.custom_name or (old or {}).get("custom_name", "")
-            name, name_source = choose_name(custom_name, bluetooth_name)
+                return self.rejected(400, "INVALID_BLUETOOTH_NAME")
             pin, cert, key = await asyncio.to_thread(pki.issue_device, self.root, serial, mac)
             self.devices[serial] = {
                 "serial": serial,
                 "mac": mac,
                 "name": name,
-                "name_source": name_source,
-                "custom_name": custom_name,
-                "bluetooth_name": bluetooth_name,
                 "model": MODEL,
                 "fingerprint": pin,
                 # Durable intent: a restart before the first acknowledgement
@@ -346,15 +322,11 @@ class LocalService:
             }
             self.states.setdefault(serial, DeviceState()).prefilter_cycle = None
             await self.save()
-            # The token is claimed under the enrollment lock, so concurrent
-            # requests cannot use it to enroll different devices.
             pairing.serial = serial
             pairing.mac = mac
             for other in tuple(self.pairings.values()):
                 if other is not pairing and other.serial == serial:
                     self.cancel_pairing(other)
-            pairing.name = name
-            pairing.name_source = name_source
             pairing.download = pairing.download or secrets.token_urlsafe(18)
             self.downloads[pairing.download] = (pairing, cert, key)
             self.changed(serial)
@@ -467,8 +439,6 @@ class LocalService:
             version = attributes.get("mcuFrmwrVer")
             if isinstance(version, str):
                 state.firmware = version[:80]
-        if isinstance(api, str) and api in ("A1000", "A1010", "A1012", "A1020", "A1030", "A1050"):
-            state.raw[api] = attributes
         pending = self.pending.get((serial, request_id)) if isinstance(request_id, str) else None
         if pending and pending[0] == api and not pending[1].done():
             pending[1].set_result(attributes)
@@ -573,7 +543,7 @@ class LocalService:
         # Deliberately omit keys, certificates, tokens, identities, IPs and raw payloads.
         return {
             "running": self.started,
-            "amqtt_version": "0.12.1",
+            "amqtt_version": AMQTT_VERSION,
             "ports": {
                 key: value for key, value in asdict(self.config).items() if key.endswith("_port")
             },

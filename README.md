@@ -1,10 +1,8 @@
 # Coway Local
 
-A single Home Assistant custom integration for local Coway control, tested with the **AP-1022K**. It hosts the certificate service and TLS MQTT broker inside Home Assistant. Initial Wi-Fi setup uses a nearby Mac or Android device running Chrome and Web Bluetooth.
+A Home Assistant custom integration for local control of Coway Air purifiers, tested with the **AP-1022K**. Using this integration disconnects your device from the Coway cloud. The device is paired with Home Assistant directly, through this custom integration that implements a modified MQTT broker which the fan connects to.
 
-No add-on, external MQTT integration, Raspberry Pi, or Bluetooth adapter on the HA host is required. After enrollment, the fan connects directly to HA over your LAN. The Coway cloud and provisioning website are not needed for ongoing control.
-
-This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Bluetooth discovery uses the manufacturer's advertisement layouts found in the IoCare app, without an exact model-name restriction. Other models can be tried if they advertise those layouts and expose the same setup services and identity format. Only AP-1022K has been tested on physical hardware; other models and firmware are unverified. See [discovery evidence and limitations](BLE_DISCOVERY.md).
+This is an experimental implementation of the observed **FFC0 / P001 / P002** protocol. Bluetooth discovery uses the manufacturer's advertisement layouts found in the IoCare app. Other models can be tried if they advertise those layouts and expose the same setup services and identity format. Only AP-1022K has been tested on physical hardware; other models and firmware are unverified. See [discovery evidence and limitations](BLE_DISCOVERY.md).
 
 ## Included
 
@@ -26,12 +24,14 @@ In HACS, add `https://github.com/scottjg/coway-local` as a custom repository, ca
 
 Add **Coway Local** under **Settings → Devices & services → Add integration**.
 
-1. Enter the HA host’s reserved LAN **IPv4 address**. Do not enter `homeassistant.local`, a cloud URL, `0.0.0.0`, or a Docker-internal address.
-2. Choose three unused TCP ports. Defaults: HTTP **8080**, HTTPS **9443**, MQTT TLS **9883**.
-3. Set the provisioning page URL to your published HTTPS site. The project’s hosted page is `https://scottjg.github.io/coway-local/`. You can also publish the included `web/` directory to your own HTTPS host. For offline development, use `http://localhost:18765/` as described below.
-4. Submit. If a port is busy, HA reports setup retrying; choose another port in the entry’s settings.
+The form shows the LAN **IPv4 address** that Home Assistant detected for itself. In most installations you only need to confirm it and submit.
 
-Reserve the HA host address in your router before provisioning. Changing the address or ports requires provisioning the fan again.
+- **Address:** change it only if the fan cannot reach Home Assistant there. With Docker bridge networking, enter the Docker host’s LAN address instead of the detected container address. Reserve the address in your router before provisioning.
+- **Advanced settings:** three TCP ports (defaults: HTTP **8080**, HTTPS **9443**, MQTT TLS **9883**), the listen address, and the provisioning page URL. The default page is `https://scottjg.github.io/coway-local/`; you can also publish the included `web/` directory yourself, as described below.
+
+If a port is busy, HA reports setup retrying; choose another port under **Configure → Server settings**.
+
+Changing the address or ports requires provisioning the fan again. If the machine later loses the configured address, Coway Local raises a repair notice under **Settings → Repairs**.
 
 ## Add a fan
 
@@ -44,35 +44,6 @@ Reserve the HA host address in your router before provisioning. Changing the add
 Every enrollment, including provisioning an existing fan again, sets its cleaning interval to **3 weeks**. This is the integration's chosen default, not a verified factory default. Change it afterward using **Pre-filter cleaning cycle**. HA saves confirmed changes and restores the last known interval after a restart; ordinary reconnects do not reset your choice. If initialization is interrupted before confirmation, HA retries when the fan reconnects or during its next periodic refresh.
 
 The setup link expires after 15 minutes and is revoked when canceled or completed. If it expires or the fan exits setup mode, generate a new link and re-enter setup mode. Safari and iPhone browsers are not supported by this setup path.
-
-### Device names
-
-New fans use the selected device's advertised Bluetooth name. You can change
-the name in Home Assistant after adding the fan. If the advertisement has no name, setup uses the
-module name returned by the BLE identity response when available.
-
-The browser derives an 18-character local protocol identifier as `LOCAL0` followed
-by the fan's 12 uppercase Wi-Fi MAC digits. This value is sent in the firmware's
-`serial` field and used for local certificates, MQTT topics, and HA entity IDs.
-It is not the manufacturer's printed serial number, and HA does not display it
-as one. The physical AP-1022K accepted this identity for enrollment and control.
-
-Names are saved locally. Re-enrollment preserves existing custom names.
-Names assigned through HA's device settings take precedence
-and are never overwritten. Existing entity IDs remain unchanged on re-enrollment.
-
-The browser carries the Bluetooth label in a base64url path
-on the fan's existing HTTPS enrollment request. The server validates the token and verifies that the supplied local identifier
-exactly matches the Wi-Fi MAC. The first valid request binds the token to that
-fan; another MAC cannot claim it, including with concurrent requests. Wi-Fi credentials and tokens
-are not included in that path; short certificate/key download URLs are unchanged.
-Use the current integration and hosted setup page together.
-No migrations or compatibility paths for earlier development snapshots are included.
-Before re-enrolling a fan that used its printed serial in an earlier development
-version, remove that old device from Coway Local. New setup links use version 2;
-update both the integration and setup page, then create a fresh link.
-
-The browser displays the destination server before transmitting anything. Its setup token is in the URL fragment, which is not sent in the HTTPS request, and the page removes that fragment immediately. The Wi-Fi password is entered only in the page, stays in memory, and is cleared after completion or disconnection. HA does not receive or store the Wi-Fi password.
 
 ## Networking
 
@@ -89,11 +60,14 @@ The fan’s CA bootstrap intentionally uses HTTP, matching the device protocol. 
 
 ## Serve the provisioning page
 
-Publish only **`web/`** to a trusted HTTPS static host. The included GitHub Pages workflow deploys this directory when manually dispatched:
+The setup page is versioned by setup-link format. The integration appends `v1/` to the configured page URL, so each installed release opens a page that understands its links. An incompatible change to the link gets a new directory (`web/v2/`), and the old one stays published for people who have not updated.
+
+To host it yourself, publish **`web/`** to a trusted HTTPS static host and enter that URL, without the `v1/`, in the integration’s advanced settings. The included GitHub Pages workflow deploys on each release, or manually:
 
 1. Enable GitHub Pages with **GitHub Actions** as its source.
 2. Run **Actions → Provisioning page → Run workflow**.
-3. Enter the resulting HTTPS URL in the integration’s server settings.
+
+The workflow also keeps the 0.4.2 page at the site root, which releases up to 0.4.2 open.
 
 The static site has no backend. Anyone can host the code, but the site operator controls JavaScript that sees the enrollment token and Wi-Fi password. Use a deployment you trust; no third-party scripts are included.
 
@@ -107,7 +81,7 @@ Set the integration’s provisioning URL to `http://localhost:18765/`, then open
 
 ## Storage and lifecycle
 
-Credentials are stored under `/config/.storage/coway_local/` with private file permissions. Back up this directory together with HA’s config entries. Losing the CA or device credentials requires restoring that backup or provisioning the fan again. The implementation refuses to silently replace a partially missing CA store.
+Credentials are stored under `/config/.storage/coway_local/` with private file permissions. Back up this directory together with HA’s config entries. Losing the CA or device credentials requires restoring that backup or provisioning the fan again. 
 
 Each device’s certificate fingerprint is bound to its MQTT client ID. It can publish only its own observed status/event topics and subscribe only to its four observed command topics, including its exact `$aws/...` topic. The embedded broker is dedicated to these fans; it is not a general-purpose MQTT broker and does not replace an existing HA MQTT integration.
 
@@ -126,12 +100,7 @@ The four measurement sensors consume the fan's periodic `A1020` reports:
 
 PM2.5 is identified by [Coway's public sensor definitions](https://iocare2.coway.com/_next/static/chunks/3kv1xb4at9t7g.js). The light and filter mappings agree with [PyCoway's sensor codes](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/constants.py) and [filter conversion](https://github.com/Antonio112009/pycoway/blob/9d5929bee7f4d3a61e45275bb6486669b4b3474e/src/pycoway/devices/parser.py). All four attributes were observed on the tested fan; filter percentages have not been compared side by side with the original app.
 
-Sensors show unknown until the first report after connection, and unavailable while disconnected. Partial reports preserve other readings; invalid types, negative values, and filter usage above 100 become unknown. No additional cloud requests or device commands are sent. These are measurement sensors with history/statistics, so their routine updates are excluded from Activity.
-
-- "Last seen" changes on every MQTT message. It is disabled by default to avoid filling Activity and the recorder with routine timestamps. Enable it in the entity settings only when needed for troubleshooting. The Connection sensor remains enabled. Disabling Last seen stops new updates but does not delete historical entries.
-- Tested on one AP-1022K, MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`. Do not assume other Coway devices use this protocol.
-- The name-independent setup page enables experiments with other models, not automatic multi-model support. The server still uses the AP-1022K control/telemetry mappings and MQTT service code `002AIR007`; its model metadata also defaults to AP-1022K. Compatible Bluetooth services alone do not establish compatibility with those server mappings.
-- A read-only query for the pre-filter cleaning interval has not been identified. Enrollment establishes a confirmed 3-week default, and confirmed changes are saved across HA restarts.
+- Other models can be tried, but the server uses the AP-1022K control and telemetry mappings and MQTT service code `002AIR007`. A fan that completes Bluetooth setup is not necessarily compatible with them.
 - PM10, other air-quality metrics, filter notification flags, firmware updates, and AWS shadow synchronization are not implemented. The broker accepts the observed shadow/FOTA subscriptions but does not provide those services.
 - Wi-Fi association failure: use a 2.4 GHz network compatible with the fan, re-enter setup mode, and check the password.
 - Certificate or broker failure: check the advertised LAN IP, the three ports, routing/VLAN isolation, and HA logs. Keep the short HTTPS download URLs intact.
@@ -140,7 +109,7 @@ Sensors show unknown until the first report after connection, and unavailable wh
 
 This integration is independent of the Coway IoCare cloud integration. Provisioning to this server replaces the fan’s cloud destination; the original mobile app is not the controller for this local configuration.
 
-## Development and validation
+## Development
 
 ```sh
 python3.14 -m venv .venv
@@ -151,9 +120,11 @@ node --test tests/web.test.mjs
 .venv/bin/python scripts/package.py
 ```
 
-Tests use temporary credentials and real loopback HTTP/TLS/MQTT sockets. They cover enrollment expiry, credential isolation, MQTT acknowledgements and reserved topics, device impersonation, persistence, reconnect, configuration validation, and real HA flows/entities/services/reload. Cleaning-interval tests cover the enrollment default, matching acknowledgements, interrupted initialization, later preferences surviving restarts, and re-enrollment. Telemetry tests cover wire-to-entity values and units, percentage conversion, partial and invalid reports, stale-value clearing on reconnect, and Activity filtering. Browser codec tests use an independent fixed protocol fixture. No test requires a real fan. For interactive wizard checks with synthetic Bluetooth responses, run `python tests/browser/serve.py` and open `http://localhost:18765/preview`. Its scenario controls exercise cancellation, unsupported devices, empty scans, Wi-Fi failure, and disconnect recovery without touching hardware. The test adapter is outside the published `web/` directory.
+The Python tests run the service and a real Home Assistant instance against loopback HTTP, TLS, and MQTT sockets with temporary credentials. No test needs a fan. To try the wizard with a simulated Bluetooth fan, run `python tests/browser/serve.py` and open `http://localhost:18765/preview`.
 
-Hardware checks confirmed status queries, speed changes, power off/on, and automatic reconnect with this service. A fresh enrollment from the published HTTPS page into HAOS also passed, using ports 8080, 9443, and 9883. HA created the original eight entities, controlled the fan, and continued receiving fresh status after the old laptop services stopped. See `VALIDATION.md` for the tested versions and limits.
+## Tested hardware
+
+One AP-1022K (MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`), enrolled from Chrome on macOS into Home Assistant OS 18.3 with Core 2026.10.2. Enrollment, control, telemetry, and reconnecting after an HA restart work on that fan. Other models, other firmware, and HA Container networking have not been tested on hardware.
 
 aMQTT is pinned to **0.12.1** because the adapter overrides private broker hooks. Re-run wire and HA compatibility tests before changing that pin.
 

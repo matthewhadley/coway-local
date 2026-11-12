@@ -4,14 +4,22 @@
     "step": {
       "user": {
         "title": "Start Coway Local",
-        "description": "This integration hosts the fan’s local services. Use a reserved LAN IPv4 address reachable by the fan. After setup, choose Configure → Add fan. Tested with AP-1022K only.",
+        "description": "This integration hosts the fan’s local services at the address below, which was detected automatically. Change it only if the fan cannot reach Home Assistant there, for example with Docker bridge networking. Reserve the address in your router: fans must be provisioned again if it changes. After setup, choose Configure → Add fan. Tested with AP-1022K only.",
         "data": {
-          "host": "Home Assistant LAN IPv4 address",
-          "http_port": "CA download port (HTTP)",
-          "https_port": "Certificate service port (HTTPS)",
-          "mqtt_port": "Fan MQTT port (TLS)",
-          "bind_host": "Listen address",
-          "provisioner_url": "HTTPS provisioning page URL"
+          "host": "Home Assistant LAN IPv4 address"
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced settings",
+            "description": "The defaults suit most installations.",
+            "data": {
+              "provisioner_url": "HTTPS provisioning page URL",
+              "http_port": "CA download port (HTTP)",
+              "https_port": "Certificate service port (HTTPS)",
+              "mqtt_port": "Fan MQTT port (TLS)",
+              "bind_host": "Listen address"
+            }
+          }
         }
       }
     },
@@ -40,12 +48,20 @@
         "title": "Server settings",
         "description": "Changing the advertised address or ports requires provisioning existing fans again. Reserve the host’s LAN address before setup. Changing settings restarts this integration.",
         "data": {
-          "host": "Home Assistant LAN IPv4 address",
-          "http_port": "CA download port (HTTP)",
-          "https_port": "Certificate service port (HTTPS)",
-          "mqtt_port": "Fan MQTT port (TLS)",
-          "bind_host": "Listen address",
-          "provisioner_url": "HTTPS provisioning page URL"
+          "host": "Home Assistant LAN IPv4 address"
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced settings",
+            "description": "The defaults suit most installations.",
+            "data": {
+              "provisioner_url": "HTTPS provisioning page URL",
+              "http_port": "CA download port (HTTP)",
+              "https_port": "Certificate service port (HTTPS)",
+              "mqtt_port": "Fan MQTT port (TLS)",
+              "bind_host": "Listen address"
+            }
+          }
         }
       },
       "verify": {
@@ -63,6 +79,12 @@
     },
     "progress": {
       "verify_connection": "Your Wi-Fi settings have been sent. Home Assistant is waiting for the fan to connect and confirm its initial settings.\n\nThis can take another **2 minutes**. Keep the fan powered on and leave this dialog open. Setup will finish automatically."
+    }
+  },
+  "issues": {
+    "host_changed": {
+      "title": "Home Assistant’s address changed",
+      "description": "Coway Local told your fans to connect to {host}, but this machine no longer has that address, so the fans cannot reach Home Assistant.\n\nGive the machine that address again, for example with a DHCP reservation in your router, and reload Coway Local. Otherwise set the new address under Coway Local → Configure → Server settings and provision each fan again."
     }
   }
 }
