@@ -62,7 +62,7 @@ The fan’s CA bootstrap intentionally uses HTTP, matching the device protocol. 
 
 The setup page is versioned by setup-link format. The integration appends `v1/` to the configured page URL, so each installed release opens a page that understands its links. An incompatible change to the link gets a new directory (`web/v2/`), and the old one stays published for people who have not updated.
 
-To host it yourself, publish **`web/`** to a trusted HTTPS static host and enter that URL, without the `v1/`, in the integration’s advanced settings. The included GitHub Pages workflow deploys on each release, or manually:
+To host it yourself, publish **`web/`** to a trusted HTTPS static host and enter that URL, without the `v1/`, in the integration’s advanced settings. The included GitHub Pages workflow deploys whenever `web/` changes on `main`, or manually:
 
 1. Enable GitHub Pages with **GitHub Actions** as its source.
 2. Run **Actions → Provisioning page → Run workflow**.

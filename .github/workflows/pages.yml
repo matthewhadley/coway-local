@@ -1,7 +1,9 @@
 name: Provisioning page
 on:
-  release:
-    types: [published]
+  # Deploys must run from main: the github-pages environment rejects tag refs.
+  push:
+    branches: [main]
+    paths: [web/**, .github/workflows/pages.yml]
   workflow_dispatch:
 permissions:
   contents: read
