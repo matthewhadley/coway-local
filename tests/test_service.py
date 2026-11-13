@@ -92,6 +92,24 @@ async def test_enrollment_is_temporary_and_https_only(service):
             assert response.status == 403
 
 
+async def test_certificate_server_replies_in_compact_json(service):
+    # The hotspot-setup AP-1720G (02F9R) rejects a reply written with spaces.
+    pairing = service.begin_pairing()
+    tls = await asyncio.to_thread(ssl.create_default_context, cafile=service.root / "ca.pem")
+    url = service.setup_bundle(pairing)["certSvrUrl"] + "/VGVzdCBmYW4"
+    mac = "001122334455"
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=tls)) as client:
+        for body, status in (
+            ({}, 403),
+            ({"certToken": pairing.token, "serial": local_serial(mac), "macAddr": mac}, 200),
+        ):
+            async with client.post(url, json=body) as response:
+                assert response.status == status
+                text = await response.text()
+            assert text == json.dumps(json.loads(text), separators=(",", ":"))
+            assert ('"success":true' if status == 200 else '"success":false') in text
+
+
 async def test_fan_commands_reserved_events_and_acknowledgements(service, fan):
     assert service.states[fan.serial].online
     assert not service.pairings and not service.downloads
