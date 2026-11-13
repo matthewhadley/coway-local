@@ -27,7 +27,9 @@ def topic(kind: str, serial: str) -> str:
 
 
 def publications(serial):
-    return {topic(kind, serial) for kind in ("MITG", "MITGLWT", "BEvent")}
+    # The AP-1022K reports on BEvent. The hotspot-setup AP-1720G (02F9R) reports
+    # the same messages on MEvent.
+    return {topic(kind, serial) for kind in ("MITG", "MITGLWT", "BEvent", "MEvent")}
 
 
 def subscriptions(serial):

@@ -183,12 +183,22 @@ async def test_wrong_direction_publications_are_dropped(service, fan):
     for denied in (
         topic("MControl", fan.serial),
         topic("BEvent", "LOCAL0001122334466"),
+        topic("MEvent", "LOCAL0001122334466"),
         "$SYS/test",
     ):
         await asyncio.to_thread(fan.publish, denied, forged)
     await asyncio.sleep(0.05)
     assert service.states[fan.serial].settings["0003"] == original
     await service.set(fan.serial, "speed", "2")
+
+
+async def test_reports_on_mevent_are_accepted(service, fan):
+    # The hotspot-setup AP-1720G (02F9R) reports on MEvent instead of BEvent.
+    report = {"header": {"prodId": fan.serial, "API_NO": "A1010"}, "attributes": {}}
+    for speed in (3, 2):
+        report["attributes"] = {"A1010.0003": speed}
+        await asyncio.to_thread(fan.publish, topic("MEvent", fan.serial), json.dumps(report))
+        await eventually(lambda: service.states[fan.serial].settings["0003"] == speed)
 
 
 async def test_persistence_reload_and_removal(service, fan):
