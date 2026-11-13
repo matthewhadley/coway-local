@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import ssl
 import time
 from dataclasses import replace
@@ -199,6 +200,19 @@ async def test_reports_on_mevent_are_accepted(service, fan):
         report["attributes"] = {"A1010.0003": speed}
         await asyncio.to_thread(fan.publish, topic("MEvent", fan.serial), json.dumps(report))
         await eventually(lambda: service.states[fan.serial].settings["0003"] == speed)
+
+
+async def test_dropped_publications_are_reported_once_without_identity(service, fan, caplog):
+    caplog.set_level(logging.WARNING, logger="custom_components.coway_local.broker")
+    for _ in range(3):
+        await asyncio.to_thread(fan.publish, topic("MUnknown", fan.serial), "{}")
+    # A command round trip shows the broker has handled the publications.
+    await service.set(fan.serial, "speed", "2")
+    messages = [r.getMessage() for r in caplog.records if r.name.endswith(".broker")]
+    assert messages == [
+        "Dropped a fan publication on IoCare/MUnknown/002AIR007/<serial>, "
+        "which the broker does not accept"
+    ]
 
 
 async def test_persistence_reload_and_removal(service, fan):
