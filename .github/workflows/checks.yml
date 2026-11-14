@@ -22,7 +22,7 @@ jobs:
       - run: python -m pip install -r requirements-test.txt
       - run: ruff check .
       - run: pytest -q
-      - run: node --test tests/web.test.mjs
+      - run: node --test tests/web.test.mjs tests/softap.test.mjs
       - run: python scripts/package.py
   hassfest:
     runs-on: ubuntu-latest
