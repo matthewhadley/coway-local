@@ -54,13 +54,23 @@ The setup link expires after 15 minutes. If it expires, or the fan leaves setup 
 
 The Wi-Fi password is typed into the setup page and sent to the fan over Bluetooth. Home Assistant never receives or stores it.
 
-Some fans have no Bluetooth setup: in setup mode they create a Wi-Fi hotspot of their own, which the Coway app asks you to join. Set those up with [`web/v1/softap.sh`](web/v1/softap.sh), which sends the same settings over the fan's hotspot.
+### Fans that set up over their own hotspot
+
+Some fans have no Bluetooth setup: in setup mode they create a Wi-Fi hotspot of their own, which the Coway app asks you to join. The Airmega 250S with product code `02F9R` is one. These need a Mac or Linux computer; Windows is not supported yet.
+
+1. Open **Coway Local → Configure → Add or provision a fan** as above, and on the setup page choose **Set up over the fan’s hotspot**. Any browser will do.
+2. On your usual network, paste the command the page shows into a terminal. It runs [`softap.sh`](web/v1/softap.sh), which needs only bash, `openssl` and `curl`.
+3. When it asks, turn the fan on and put it in setup mode. On the Airmega 250S, hold **Filter Reset** and **Wi-Fi** together for 3 seconds, until the Wi-Fi light blinks. Join the computer to the fan’s hotspot.
+4. Choose your Wi-Fi network and enter its password. The script sends the fan the same settings the Bluetooth page would.
+5. Rejoin your usual network. The script opens Home Assistant, which waits for the fan to connect.
+
+The command contains the setup link, so it expires with it.
 
 ## Troubleshooting
 
 | Problem | What to check |
 | --- | --- |
-| The fan does not appear in the Bluetooth picker | The fan is in setup mode and you are using Chrome on a Mac or Android device. |
+| The fan does not appear in the Bluetooth picker | The fan is in setup mode and you are using Chrome on a Mac or Android device. A fan with no Bluetooth setup never appears: use **Set up over the fan’s hotspot**. |
 | Wi-Fi connection fails | The network is 2.4 GHz and the password is correct. Put the fan back in setup mode and try again. |
 | Setup stalls after Wi-Fi connects | The fan cannot reach Home Assistant. Check the configured address, the three ports, and any firewall or VLAN rules between them. |
 | The integration shows “setup retrying” | Usually a port conflict, or the credential storage is unreadable. |
