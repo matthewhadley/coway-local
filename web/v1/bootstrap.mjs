@@ -116,3 +116,30 @@ export function wifiConfig(bundle, identity, network, password, now = Date.now()
     caUrl: bundle.caUrl, certSvrUrl: url.href, certToken: bundle.certToken,
   };
 }
+
+// The setup link's fragment for a validated bundle, as Coway Local's
+// setup_url writes it.
+export function encodeSetup(bundle, now = Date.now()) {
+  const value = validateBundle(bundle, now);
+  const json = JSON.stringify({
+    v: value.v, model: value.model,
+    caUrl: value.caUrl, certSvrUrl: value.certSvrUrl,
+    certToken: value.certToken, expiresAt: value.expiresAt,
+    returnUrl: value.returnUrl,
+  });
+  const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(json)))
+    .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  return 'setup=' + encoded;
+}
+
+// The command that sets up a fan over its own hotspot with softap.sh, which
+// is served beside this page. It carries the setup link, so it is as private
+// as the link.
+export function softapCommand(bundle, scriptUrl, now = Date.now()) {
+  const url = new URL(scriptUrl);
+  if (url.protocol !== 'https:' && url.hostname !== 'localhost')
+    throw new Error('The setup script must be served over HTTPS.');
+  const setup = encodeSetup(bundle, now);
+  if (/['\s\\]/.test(url.href)) throw new Error('Invalid setup script address.');
+  return `curl -fsSL '${url.href}' | bash -s -- '${setup}'`;
+}

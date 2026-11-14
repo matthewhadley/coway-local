@@ -1,5 +1,5 @@
 import { bytes, uuid, p001, p002, randomLetters, fragments, Reassembler, decodeProto, parseScan, STATUS, FAILURE_CODES, BROKER_RETRY } from './protocol.mjs?v=0.5.2';
-import { decodeSetup, readIdentity, requestFan, wifiConfig } from './bootstrap.mjs?v=0.5.2';
+import { decodeSetup, readIdentity, requestFan, softapCommand, wifiConfig } from './bootstrap.mjs?v=0.5.2';
 
 // Strip the fragment before any Bluetooth interaction; do not persist it.
 let setupFragment = location.hash;
@@ -8,6 +8,8 @@ history.replaceState(null, '', location.pathname + location.search);
 const $ = id => document.getElementById(id);
 const INFO = uuid('ffa0'), SCAN = uuid('ffa1'), CONFIG = uuid('ffa2'), DATA = uuid('ff00');
 const stages = ['fan', 'wifi', 'review', 'connect'];
+// The hotspot path needs none of this, so a browser without it can still offer that.
+const bluetoothReady = window.isSecureContext && !!navigator.bluetooth && !!crypto.subtle;
 let saved, device, identity, channels = new Map(), busy = false, phase = 'idle', stage = 'fan';
 let networks = [], generation = 0, expiryTimer;
 const connected = () => !!device?.gatt?.connected && !!identity;
@@ -30,6 +32,7 @@ function showStage(next, focus = true) {
     if (current) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
     item.classList.toggle('done', stages.indexOf(item.dataset.stage) < stages.indexOf(next));
   }
+  document.querySelector('.wizard-steps').hidden = next === 'hotspot';
   $(`panel-${next}`).querySelector('[data-status-slot]').append($('status'));
   status();
   if (focus) $(`title-${next}`).focus({ preventScroll: true });
@@ -48,7 +51,8 @@ function progress(name) {
 function controls() {
   const ready = !!saved && connected() && !busy;
   $('connect').hidden = connected();
-  $('connect').disabled = !saved || busy || !navigator.bluetooth;
+  $('connect').disabled = !saved || busy || !bluetoothReady;
+  $('hotspot').disabled = !saved || busy;
   $('continue-wifi').hidden = !connected();
   $('continue-wifi').disabled = !ready;
   $('disconnect').hidden = !connected();
@@ -263,6 +267,26 @@ $('disconnect').addEventListener('click', () => {
   showStage('fan');
 });
 $('back-fan').addEventListener('click', () => showStage('fan'));
+$('hotspot').addEventListener('click', () => {
+  if (busy || !ensureLink()) return;
+  releaseConnection(); phase = 'idle';
+  try {
+    $('softap-command').textContent = softapCommand(saved, new URL('softap.sh', location.href).href);
+  } catch (error) { fail(error); return; }
+  log('Showing the hotspot setup command; this page sends nothing to the fan.');
+  showStage('hotspot');
+});
+$('copy-command').addEventListener('click', async () => {
+  if (!ensureLink()) return;
+  try {
+    await navigator.clipboard.writeText($('softap-command').textContent);
+    status('Copied. Paste it into Terminal.');
+  } catch {
+    getSelection().selectAllChildren($('softap-command'));
+    status('Copy the selected command, then paste it into Terminal.');
+  }
+});
+$('back-hotspot').addEventListener('click', () => { showStage('fan'); explainBluetooth(); });
 $('back-wifi').addEventListener('click', () => showStage('wifi'));
 $('retry').addEventListener('click', () => {
   if (!ensureLink()) return;
@@ -356,17 +380,18 @@ $('provision').addEventListener('click', async () => {
   } catch (error) { if (attempt === generation) fail(error); }
   finally { if (attempt === generation) { busy = false; controls(); } }
 });
+function explainBluetooth() {
+  if (!bluetoothReady)
+    status('Bluetooth setup needs Chrome on a Mac or Android phone, over HTTPS or localhost. Safari and iPhone browsers are not supported. A fan that creates its own hotspot can be set up from here.', 'error');
+}
 function initialize() {
-  if (!window.isSecureContext || !navigator.bluetooth || !crypto.subtle) {
-    $('environment').textContent = 'Chrome required';
-    throw new Error('Open this setup link in Chrome on a Mac or Android phone. Use HTTPS or localhost. Safari and iPhone browsers are not supported.');
-  }
-  $('environment').textContent = 'Bluetooth ready';
+  $('environment').textContent = bluetoothReady ? 'Bluetooth ready' : 'Chrome required';
   saved = decodeSetup(setupFragment); setupFragment = '';
   $('server').textContent = new URL(saved.certSvrUrl).host;
   $('target').textContent = 'Your Coway fan';
   $('expiry').textContent = 'Setup link expires at ' + new Date(saved.expiresAt).toLocaleTimeString() + '.';
   showStage('fan', false);
+  explainBluetooth();
   expiryTimer = setTimeout(() => {
     // Let an in-flight enrollment finish; the server also enforces expiry.
     if (phase !== 'provisioning' && phase !== 'complete') ensureLink();

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { wifiConfig } from '../web/v1/bootstrap.mjs';
+import { encodeSetup, softapCommand, wifiConfig } from '../web/v1/bootstrap.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../web/v1/softap.sh', import.meta.url));
 const FAKE_FAN = fileURLToPath(new URL('./fake-fan.mjs', import.meta.url));
@@ -18,8 +18,14 @@ const bundle = {
   certSvrUrl: 'https://192.0.2.1:9443/n',
   returnUrl: 'http://homeassistant.local:8123/api/coway_local/provisioning/return?flow_id=' + 'b'.repeat(32) + '&state=' + 'c'.repeat(32),
 };
+// Encoded directly, so links the setup page would refuse can be made too.
 const link = value => 'https://example.github.io/coway-local/v1/#setup='
   + Buffer.from(JSON.stringify(value)).toString('base64url');
+// The argument the setup page's command passes.
+const commandSetup = () => {
+  const command = softapCommand(bundle, 'https://example.github.io/coway-local/v1/softap.sh');
+  return command.match(/bash -s -- '([^']+)'$/)[1];
+};
 
 function run(args, input, env = {}) {
   const child = spawn('bash', [SCRIPT, '--host', '127.0.0.1', '--mac', MAC, '--no-open', ...args],
@@ -55,7 +61,8 @@ const expected = (network, password, name) => Object.fromEntries(Object.entries(
   wifiConfig(bundle, { mac: MAC, name }, network, password)).filter(([, v]) => v !== ''));
 
 test('sends the setup page settings for a secured network, strongest first', async () => {
-  const { fields, stdout } = await provisioned([link(bundle)], '\n\n', { COWAY_WIFI_PASSWORD: 'hunter2-pass' });
+  assert.equal(commandSetup(), encodeSetup(bundle));
+  const { fields, stdout } = await provisioned([commandSetup()], '\n\n', { COWAY_WIFI_PASSWORD: 'hunter2-pass' });
   assert.match(stdout, /Setup key: cmd 1, ok 1, code 61/);
   assert.deepEqual(fields, expected({ ssid: 'home-2.4', bssid: '0A0000000001', channel: 6, security: 4 }, 'hunter2-pass', 'Coway 6294F3'));
 });

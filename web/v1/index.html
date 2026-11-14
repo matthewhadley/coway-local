@@ -44,6 +44,35 @@
           <p>The picker shows devices advertising Coway setup services. AP-1022K has been tested; other models using the
             same setup protocol are experimental.</p>
         </details>
+        <div class="hotspot-option">
+          <h3>Fan not in the picker?</h3>
+          <p>Some fans, such as the Airmega 250S with product code 02F9R, have no Bluetooth setup and create a Wi-Fi
+            hotspot of their own instead.</p>
+          <div class="actions"><button id="hotspot" class="secondary" disabled>Set up over the fan’s hotspot</button></div>
+        </div>
+      </section>
+      <section id="panel-hotspot" aria-labelledby="title-hotspot" hidden>
+        <h2 id="title-hotspot" tabindex="-1">Set up over the fan’s hotspot</h2>
+        <p>A script on this computer sends your fan its settings over the hotspot the fan creates in setup mode. It
+          needs a Mac or Linux; Windows is not supported yet.</p>
+        <ol class="instructions">
+          <li>On your usual network, open Terminal. On a Mac it is in Applications → Utilities.</li>
+          <li>Paste this command and press Return:</li>
+        </ol>
+        <pre id="softap-command" class="command"></pre>
+        <div class="actions"><button id="copy-command">Copy command</button><button id="back-hotspot"
+            class="secondary">Back</button></div>
+        <ol class="instructions" start="3">
+          <li>When it asks, turn the fan on and put it in setup mode. On the Airmega 250S, hold Filter Reset and Wi-Fi
+            together for 3 seconds, until the Wi-Fi light blinks. Then join this computer to the fan’s hotspot.</li>
+          <li>Choose your Wi-Fi network and enter its password in the script.</li>
+          <li>When the fan has its settings, rejoin your usual network. The script opens Home Assistant, which finishes
+            setup.</li>
+        </ol>
+        <p class="footnote">The command contains this setup link, so it works only for the next few minutes and only
+          for your Home Assistant. Your Wi-Fi password is typed into the script and sent to the fan over its hotspot.
+          Home Assistant does not receive it.</p>
+        <div data-status-slot></div>
       </section>
       <section id="panel-wifi" aria-labelledby="title-wifi" hidden>
         <p class="step-label">Step 2 of 4</p>
