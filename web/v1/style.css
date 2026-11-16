@@ -543,3 +543,30 @@ footer {
         font-size: 23px
     }
 }
+.hotspot-option {
+    border-top: 1px solid #e6ebe2;
+    margin-top: 16px;
+    padding-top: 16px
+}
+
+.hotspot-option h3 {
+    font-size: 17px;
+    line-height: 1.3;
+    letter-spacing: -.01em;
+    font-weight: 650;
+    margin: 0 0 6px
+}
+
+.hotspot-option p {
+    margin: 0
+}
+
+pre.command {
+    font-size: 12px;
+    max-height: none;
+    user-select: all
+}
+
+.hotspot-option .actions {
+    margin-top: 12px
+}

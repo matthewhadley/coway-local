@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
-      - run: node --test tests/web.test.mjs
+      - run: node --test tests/web.test.mjs tests/softap.test.mjs
       - name: Assemble the site
         run: |
           mkdir site
