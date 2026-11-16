@@ -6,7 +6,7 @@ Using this integration disconnects your fan from the Coway cloud. The fan is pai
 
 Setup is done from a web page that uses Web Bluetooth to give the fan your Wi-Fi details and the address of your Home Assistant instance. Chrome only allows Web Bluetooth on HTTPS pages, so the setup page is hosted on GitHub Pages instead of being served by Home Assistant.
 
-This is experimental. It implements the protocol observed on one AP-1022K, and no other model or firmware has been tested. See [Compatibility](#compatibility).
+This is experimental. It implements the protocol observed on one AP-1022K, and the only other model it has been used with is the AP-1720G. See [Compatibility](#compatibility).
 
 ## What you get
 
@@ -54,11 +54,23 @@ The setup link expires after 15 minutes. If it expires, or the fan leaves setup 
 
 The Wi-Fi password is typed into the setup page and sent to the fan over Bluetooth. Home Assistant never receives or stores it.
 
+### Fans that set up over their own hotspot
+
+Some fans have no Bluetooth setup: in setup mode they create a Wi-Fi hotspot of their own, which the Coway app asks you to join. The Airmega 250S with product code `02F9R` is one. These need a Mac or Linux computer; Windows is not supported yet.
+
+1. Open **Coway Local → Configure → Add or provision a fan** as above, and on the setup page choose **Set up over the fan’s hotspot**. Any browser will do.
+2. On your usual network, paste the command the page shows into a terminal. It runs [`softap.sh`](web/v1/softap.sh), which needs only bash, `openssl` and `curl`.
+3. When it asks, turn the fan on and put it in setup mode. On the Airmega 250S, hold **Filter Reset** and **Wi-Fi** together for 3 seconds, until the Wi-Fi light blinks. Join the computer to the fan’s hotspot.
+4. Choose your Wi-Fi network and enter its password. The script sends the fan the same settings the Bluetooth page would.
+5. Rejoin your usual network. The script opens Home Assistant, which waits for the fan to connect.
+
+The command contains the setup link, so it expires with it.
+
 ## Troubleshooting
 
 | Problem | What to check |
 | --- | --- |
-| The fan does not appear in the Bluetooth picker | The fan is in setup mode and you are using Chrome on a Mac or Android device. |
+| The fan does not appear in the Bluetooth picker | The fan is in setup mode and you are using Chrome on a Mac or Android device. A fan with no Bluetooth setup never appears: use **Set up over the fan’s hotspot**. |
 | Wi-Fi connection fails | The network is 2.4 GHz and the password is correct. Put the fan back in setup mode and try again. |
 | Setup stalls after Wi-Fi connects | The fan cannot reach Home Assistant. Check the configured address, the three ports, and any firewall or VLAN rules between them. |
 | The integration shows “setup retrying” | Usually a port conflict, or the credential storage is unreadable. |
@@ -117,6 +129,13 @@ Certificates and keys are stored in `/config/.storage/coway_local/`. Include tha
 ## Compatibility
 
 Tested on one AP-1022K (MCU firmware `V1.0.0.1`, Wi-Fi firmware `000011`), set up from Chrome on macOS into Home Assistant OS 18.3 with Core 2026.10.2. Setup, control, sensors, and reconnecting after a restart work on that fan.
+
+Also used with three AP-1720G (Airmega 250S) on Home Assistant Core 2026.11.1, firmware versions not recorded:
+
+- **Product code `02FWK`**, set up over Bluetooth like the AP-1022K.
+- **Product code `02F9R`**, two fans with no Bluetooth setup, set up over their own hotspot with [`web/v1/softap.sh`](web/v1/softap.sh). These need the certificate server's replies in compact JSON and their reports accepted on the `MEvent` topic. [HOTSPOT_SETUP.md](HOTSPOT_SETUP.md) has the details.
+
+On all three, sensors and reconnecting after a Home Assistant restart work, and fan speed control was tried on a `02F9R`. The AP-1720G's own modes, such as rapid mode, and its light settings are not mapped: the controls use the AP-1022K's.
 
 Not tested: other models, other firmware, and Home Assistant Container networking.
 

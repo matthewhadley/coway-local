@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {decodeSetup, readIdentity, requestFan, validateBundle, wifiConfig} from '../web/v1/bootstrap.mjs';
+import {decodeSetup, encodeSetup, readIdentity, requestFan, softapCommand, validateBundle, wifiConfig} from '../web/v1/bootstrap.mjs';
 import {p001, p002, utf8, hex, fragments, Reassembler, decodeProto, localSerial} from '../web/v1/protocol.mjs';
 
 const now = 1800000000000;
@@ -183,4 +183,14 @@ test('unsafe or oversized Bluetooth labels stop provisioning', () => {
   const network = {ssid: 'Example', bssid: 'aabbccddeeff', channel: 6, security: 4};
   for (const name of ['', ' ', 'x'.repeat(81), 'Bad\nname', 'Bad\u007fname'])
     assert.throws(() => wifiConfig(bundle, {mac: '001122334455', name}, network, 'testwifi', now));
+});
+
+test('the hotspot command carries a setup link that decodes to the same bundle', () => {
+  const setup = encodeSetup(bundle, now);
+  assert.match(setup, /^setup=[A-Za-z0-9_-]+$/);
+  assert.deepEqual(decodeSetup('#' + setup, now), validateBundle(bundle, now));
+  assert.equal(softapCommand(bundle, 'https://scottjg.github.io/coway-local/v1/softap.sh', now),
+    `curl -fsSL 'https://scottjg.github.io/coway-local/v1/softap.sh' | bash -s -- '${setup}'`);
+  assert.throws(() => softapCommand(bundle, 'http://example.com/softap.sh', now), /HTTPS/);
+  assert.throws(() => softapCommand({...bundle, expiresAt: now - 1}, 'https://example.com/softap.sh', now), /expired/);
 });
